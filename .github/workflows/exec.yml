@@ -14,6 +14,9 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
+      - name: ⏳ 去重窗口
+        run: sleep 10    # 等待 cancel-in-progress 取消重复触发
+
       - name: 🚀 业务执行
         run: |
           echo "exec | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
