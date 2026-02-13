@@ -4,7 +4,6 @@ import os, subprocess, sys, time
 SELF = os.environ["SELF"]
 REPO = os.environ["REPO"]
 RUN  = int(os.environ["RUN_ID"])
-OFF  = (ord(SELF[-1]) - ord("a")) * 10  # a→0s b→10s c→20s 错开触发
 
 
 def gh(*a):
@@ -26,8 +25,8 @@ def main():
             if rid and int(rid) > RUN:
                 sys.exit(print(f"🛑 新实例 #{rid}, 退出"))
 
-        # 对齐整分钟 + 身份偏移 (a:00s b:10s c:20s)
-        time.sleep(60 - time.time() % 60 + OFF)
+        # 对齐整分钟
+        time.sleep(60 - time.time() % 60)
         ts = time.strftime('%H:%M:%S', time.gmtime())
 
         # exec 空闲 → 触发 (三条 tick 都尝试, alive+concurrency 保证单例)
