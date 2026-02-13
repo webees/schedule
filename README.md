@@ -2,93 +2,96 @@
 
 [English](README_en.md) | [繁體中文](README_zh-TW.md)
 
-精準自調度系統 — 三鏈駐留 + 單例執行器 + 守護者，繞過 GitHub cron 節流限制。
+精准自调度系统 — 三链驻留 + 单例执行器 + 守护者，绕过 GitHub cron 节流限制。
 
-## 問題
+## 问题
 
-GitHub Actions 的 cron 調度存在嚴重節流：設定每 5 分鐘執行，實際間隔可達 50+ 分鐘。
+GitHub Actions 的 cron 调度存在严重节流：设定每 5 分钟执行，实际间隔可达 50+ 分钟。
 
 ## 方案
 
-三條 tick 鏈在 VM 內以 for 循環駐留（每輪 5 小時），對齊整分鐘精準觸發單例業務執行器。
+三条 tick 链在 VM 内以 for 循环驻留（每轮 5 小时），对齐整分钟精准触发单例业务执行器。
 
-## 架構
+## 架构
 
 ```
-tick-a (for循環, 駐留5h, 負責 min%3==0) ──┐
-tick-b (for循環, 駐留5h, 負責 min%3==1) ──┼── 每分鐘恰好一個觸發 ──→ exec.yml (單例)
-tick-c (for循環, 駐留5h, 負責 min%3==2) ──┘                              │
+tick-a (for循环, 驻留5h, 负责 min%3==0) ──┐
+tick-b (for循环, 驻留5h, 负责 min%3==1) ──┼── 每分钟恰好一个触发 ──→ exec.yml (单例)
+tick-c (for循环, 驻留5h, 负责 min%3==2) ──┘                              │
          ▲                                                               ▼
-    guard.yml (單例喚醒者)                                        觸發外部倉庫
+    guard.yml (单例唤醒者)                                        触发外部仓库
 ```
 
-## 時序
+## 时序
 
 ```
-分鐘:  :00   :01   :02   :03   :04   :05   :06
+分钟:  :00   :01   :02   :03   :04   :05   :06
 tick-a: 🎯                 🎯                 🎯      ← min%3==0
 tick-b:       🎯                 🎯                    ← min%3==1
 tick-c:             🎯                 🎯              ← min%3==2
-exec:   █    █    █    █    █    █    █               ← 每分鐘一次, 單例
+exec:   █    █    █    █    █    █    █               ← 每分钟一次, 单例
 ```
 
-## 核心機制
+## 核心机制
 
-### 精準對齊
+### 精准对齐
 
-```bash
-# 每次循環對齊到整分鐘
-SEC=$(date -u '+%-S')
-WAIT=$((60 - SEC))
-sleep $WAIT
+```python
+# 每次循环对齐到整分钟
+wait = 60 - (time.time() % 60)
+time.sleep(wait)
 ```
 
 ### 三重去重
 
 ```
-1. 分鐘分配: min%3 == offset → 每分鐘只有一條 tick 有權觸發
-2. 狀態檢查: 觸發前檢查 exec 是否 in_progress/queued → 跳過
-3. concurrency: exec.yml group=exec → 萬一雙觸發也只跑一個
+1. 分钟分配: min%3 == offset → 每分钟只有一条 tick 有权触发
+2. 状态检查: 触发前检查 exec 是否 in_progress/queued → 跳过
+3. concurrency: exec.yml group=exec → 万一双触发也只跑一个
 ```
 
-### 互守護
+### 新实例清理
+
+```python
+# 启动时取消同名旧实例, 确保每个 tick 只有一个运行
+gh run list → 找到其他 in_progress 的同名 run → gh run cancel
+```
+
+### 互守护
 
 ```
-tick-a 發現 tick-b 死了 → 觸發 guard.yml
-tick-c 發現 tick-b 死了 → 也觸發 guard.yml → 被 cancel-in-progress 丟棄
-guard 單例運行 → 檢查所有 tick → 喚起死掉的鏈
+tick-a 发现 tick-b 死了 → 触发 guard.yml
+tick-c 发现 tick-b 死了 → 也触发 guard.yml → 被 cancel-in-progress 丢弃
+guard 单例运行 → 检查所有 tick → 唤起死掉的链
 ```
 
-## 文件
+## 文件结构
 
-| 文件 | 作用 | 生命週期 |
-|------|------|---------|
-| `tick-a/b/c.yml` | 定時器 (for 循環駐留) | ~5h/輪, 自動續期 |
-| `exec.yml` | 業務執行器 (單例) | 每次觸發 ~30s |
-| `guard.yml` | 守護者 (喚醒死掉的 tick) | 按需 |
+```
+.github/workflows/
+  tick-a.yml          定时器 A (仅 name 不同)
+  tick-b.yml          定时器 B
+  tick-c.yml          定时器 C
+  exec.yml            业务执行器 (单例)
+  guard.yml           守护者
 
-> tick-a/b/c 三個文件邏輯完全一致, 僅 `name:` 不同, 通過 `github.workflow` 動態推導身份。
+scripts/
+  tick.py             定时器核心逻辑 (三个 tick 共用)
+  guard.py            守护者逻辑
+```
 
-## 啟動
+> tick-a/b/c 三个 workflow 完全一致，仅 `name:` 不同，通过 `github.workflow` 动态推导身份。
+
+## 启动
 
 ```bash
 gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60 && gh workflow run tick-c.yml
 ```
 
-## 全滅恢復
+## 全灭恢复
 
-手動觸發任意一條 tick → 守護機制自動喚起其他鏈。
+手动触发任意一条 tick → 守护机制自动唤起其他链。
 
-## 資源消耗
-
-| 組件 | VM 啟動次數/天 | 說明 |
-|------|--------------|------|
-| tick-a/b/c (各) | ~5 次 | VM 駐留 5h, 自動續期 |
-| exec | ~1440 次 | 每分鐘觸發, 秒級完成 |
-| guard | 偶爾 | 僅在 tick 死亡時觸發 |
-
-公開倉庫 Actions 分鐘無限制, 零費用。
-
-## 授權
+## 授权
 
 MIT

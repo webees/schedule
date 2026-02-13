@@ -22,25 +22,13 @@ tick-c (for迴圈, 駐留5h, 負責 min%3==2) ──┘                         
     guard.yml (單例喚醒者)                                        觸發外部倉庫
 ```
 
-## 時序
-
-```
-分鐘:  :00   :01   :02   :03   :04   :05   :06
-tick-a: 🎯                 🎯                 🎯      ← min%3==0
-tick-b:       🎯                 🎯                    ← min%3==1
-tick-c:             🎯                 🎯              ← min%3==2
-exec:   █    █    █    █    █    █    █               ← 每分鐘一次, 單例
-```
-
 ## 核心機制
 
 ### 精準對齊
 
-```bash
-# 每次迴圈對齊到整分鐘
-SEC=$(date -u '+%-S')
-WAIT=$((60 - SEC))
-sleep $WAIT
+```python
+wait = 60 - (time.time() % 60)
+time.sleep(wait)
 ```
 
 ### 三重去重
@@ -51,23 +39,31 @@ sleep $WAIT
 3. concurrency: exec.yml group=exec → 萬一雙觸發也只跑一個
 ```
 
+### 新實例清理
+
+```python
+# 啟動時取消同名舊實例, 確保每個 tick 只有一個運行
+gh run list → 找到其他 in_progress 的同名 run → gh run cancel
+```
+
 ### 互守護
 
 ```
-tick-a 發現 tick-b 死了 → 觸發 guard.yml
-tick-c 發現 tick-b 死了 → 也觸發 guard.yml → 被 cancel-in-progress 丟棄
-guard 單例運行 → 檢查所有 tick → 喚起死掉的鏈
+tick-a 發現 tick-b 死了 → 觸發 guard.yml → guard 單例喚起 tick-b
 ```
 
-## 檔案
+## 檔案結構
 
-| 檔案 | 作用 | 生命週期 |
-|------|------|---------|
-| `tick-a/b/c.yml` | 定時器 (for 迴圈駐留) | ~5h/輪, 自動續期 |
-| `exec.yml` | 業務執行器 (單例) | 每次觸發 ~30s |
-| `guard.yml` | 守護者 (喚醒死掉的 tick) | 按需 |
+```
+.github/workflows/
+  tick-a/b/c.yml      定時器 (僅 name 不同, 邏輯共用 tick.py)
+  exec.yml             業務執行器 (單例)
+  guard.yml            守護者
 
-> tick-a/b/c 三個檔案邏輯完全一致, 僅 `name:` 不同, 透過 `github.workflow` 動態推導身份。
+scripts/
+  tick.py              定時器核心邏輯
+  guard.py             守護者邏輯
+```
 
 ## 啟動
 

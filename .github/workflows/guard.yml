@@ -5,30 +5,17 @@ on:
 
 concurrency:
   group: guard
-  cancel-in-progress: true      # 多个 tick 同时触发时只跑一个
+  cancel-in-progress: true
 
 permissions:
   actions: write
 
 jobs:
-  revive:
+  guard:
     runs-on: ubuntu-latest
     steps:
-      - name: 🔍 检测并唤醒
+      - uses: actions/checkout@v4
+      - run: python3 scripts/guard.py
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: |
-          REVIVED=0
-          for w in tick-a.yml tick-b.yml tick-c.yml; do
-            S=$(gh run list -w $w --json status -q '.[0].status' -R $REPO --limit 1)
-            if [ "$S" != "in_progress" ] && [ "$S" != "queued" ]; then
-              echo "🚨 $w 已停止, 唤醒中..."
-              gh workflow run $w -R $REPO
-              REVIVED=$((REVIVED + 1))
-              sleep 60    # 交错启动, 维持 60s 间隔
-            else
-              echo "✅ $w 存活 (status: $S)"
-            fi
-          done
-          echo "📊 本次唤醒: $REVIVED 条链"

@@ -22,25 +22,13 @@ tick-c (for-loop, 5h resident, owns min%3==2) ──┘                         
     guard.yml (singleton reviver)                                           trigger external repos
 ```
 
-## Timing
-
-```
-Minute: :00   :01   :02   :03   :04   :05   :06
-tick-a:  🎯                 🎯                 🎯     ← min%3==0
-tick-b:        🎯                 🎯                   ← min%3==1
-tick-c:              🎯                 🎯             ← min%3==2
-exec:    █    █    █    █    █    █    █              ← once per minute, singleton
-```
-
 ## Core Mechanisms
 
 ### Minute-Aligned Precision
 
-```bash
-# Align each loop iteration to the next whole minute
-SEC=$(date -u '+%-S')
-WAIT=$((60 - SEC))
-sleep $WAIT
+```python
+wait = 60 - (time.time() % 60)
+time.sleep(wait)
 ```
 
 ### Triple Deduplication
@@ -51,23 +39,31 @@ sleep $WAIT
 3. Concurrency: exec.yml group=exec → at most one instance runs
 ```
 
+### Old Instance Cleanup
+
+```python
+# On startup, cancel other in_progress runs of the same workflow
+gh run list → find other in_progress runs → gh run cancel
+```
+
 ### Mutual Guardianship
 
 ```
-tick-a detects tick-b is dead → triggers guard.yml
-tick-c detects tick-b is dead → also triggers guard.yml → dropped by cancel-in-progress
-guard runs as singleton → checks all ticks → revives dead chains
+tick-a detects tick-b is dead → triggers guard.yml → guard revives tick-b
 ```
 
 ## Files
 
-| File | Purpose | Lifecycle |
-|------|---------|-----------|
-| `tick-a/b/c.yml` | Timer (for-loop resident) | ~5h/cycle, auto-renews |
-| `exec.yml` | Business executor (singleton) | ~30s per trigger |
-| `guard.yml` | Guardian (revives dead ticks) | On-demand |
+```
+.github/workflows/
+  tick-a/b/c.yml      Timers (only name differs, logic shared via tick.py)
+  exec.yml             Business executor (singleton)
+  guard.yml            Guardian
 
-> tick-a/b/c are logically identical — only `name:` differs. Identity is derived dynamically via `github.workflow`.
+scripts/
+  tick.py              Timer core logic
+  guard.py             Guardian logic
+```
 
 ## Startup
 
@@ -77,7 +73,7 @@ gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60
 
 ## Full Recovery
 
-If all chains die (e.g., GitHub outage), manually trigger any single tick — the guardian mechanism automatically revives the others.
+Manually trigger any single tick — the guardian mechanism automatically revives the others.
 
 ## License
 
