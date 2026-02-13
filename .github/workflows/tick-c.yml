@@ -23,3 +23,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SELF: ${{ github.workflow }}
           REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}

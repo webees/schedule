@@ -1,13 +1,15 @@
 """tick.py — 定时器核心逻辑
 
 环境变量:
-  SELF — tick 名称 (tick-a / tick-b / tick-c)
-  REPO — 仓库 (owner/repo)
+  SELF   — tick 名称 (tick-a / tick-b / tick-c)
+  REPO   — 仓库 (owner/repo)
+  RUN_ID — 当前 run ID (用于判断是否为最新)
 """
-import json, os, subprocess, time
+import os, subprocess, sys, time
 
 SELF   = os.environ["SELF"]
 REPO   = os.environ["REPO"]
+RUN_ID = int(os.environ["RUN_ID"])
 OFFSET = {"a": 0, "b": 1, "c": 2}[SELF[-1]]
 ROUNDS = 300  # 300 轮 × ~60s ≈ 5h
 
@@ -18,17 +20,19 @@ def gh(*args):
     return r.stdout.strip()
 
 
-def gh_json(*args):
-    """调用 gh CLI, 返回 JSON"""
-    out = gh(*args)
-    return json.loads(out) if out else []
-
-
 def run_status(workflow):
     """获取 workflow 最新 run 的 status"""
     return gh("run", "list", "-w", workflow, "--json", "status", "-q", ".[0].status", "-R", REPO, "--limit", "1")
 
 
+def check_newer():
+    """检测是否有更新的实例, 有则自我销毁"""
+    ids = gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
+             "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)
+    for rid in ids.splitlines():
+        if rid and int(rid) > RUN_ID:
+            print(f"🛑 检测到新实例 #{rid}, 自我销毁")
+            sys.exit(0)
 
 
 def trigger_exec():
@@ -43,7 +47,8 @@ def trigger_exec():
 
 def renew():
     """自调度下一周期"""
-    queued = gh("run", "list", "-w", f"{SELF}.yml", "-s", "queued", "--json", "databaseId", "-q", "length", "-R", REPO)
+    queued = gh("run", "list", "-w", f"{SELF}.yml", "-s", "queued",
+                "--json", "databaseId", "-q", "length", "-R", REPO)
     if queued == "0" or not queued:
         gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
         print("🔄 已触发下一周期")
@@ -62,9 +67,12 @@ def guard():
 
 
 def main():
-    print(f"🚀 {SELF} 启动 (offset={OFFSET})")
+    print(f"🚀 {SELF} 启动 (offset={OFFSET}, run={RUN_ID})")
 
     for i in range(1, ROUNDS + 1):
+        # 每轮检测: 有新实例就自我销毁
+        check_newer()
+
         # 对齐到整分钟
         now = time.time()
         wait = 60 - (now % 60)
