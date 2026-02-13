@@ -15,31 +15,32 @@ Three tick chains reside in VMs via for-loops (~5h per cycle), aligning to exact
 ## 🏗️ Architecture
 
 ```
-tick-a (for loop, 5h resident, min%3==0) ──┐
-tick-b (for loop, 5h resident, min%3==1) ──┼── exactly 1 trigger/min ──→ exec.yml (singleton)
-tick-c (for loop, 5h resident, min%3==2) ──┘                                    │
-         ▲                                                                      ▼
-    guard.yml (singleton reviver)                                      trigger external repos
+tick-a (for loop, 5h resident) ──┐
+tick-b (for loop, 5h resident) ──┼── all attempt every minute ──→ exec.yml (singleton)
+tick-c (for loop, 5h resident) ──┘                                       │
+         ▲                                                               ▼
+    guard.yml (singleton reviver)                               trigger external repos
 ```
 
 ## ⏱️ Timing
 
-| Min | :00 | :01 | :02 | :03 | :04 | :05 | :06 | :07 | :08 |
-|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
-| tick-a | 🎯 | | | 🎯 | | | 🎯 | | |
-| tick-b | | 🎯 | | | 🎯 | | | 🎯 | |
-| tick-c | | | 🎯 | | | 🎯 | | | 🎯 |
-| exec | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Min | :00 | :01 | :02 | :03 | :04 | :05 |
+|-----|-----|-----|-----|-----|-----|-----|
+| tick-a | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
+| tick-b | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
+| tick-c | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
+| exec | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> All three ticks attempt every minute; dedup guarantees exec runs exactly once
 
 ## 🔧 Core Mechanisms
 
-### Triple Deduplication
+### Deduplication
 
 | Layer | Mechanism | Description |
 |-------|-----------|-------------|
-| 1️⃣ | `min%3 == offset` | Only one tick may trigger per minute |
-| 2️⃣ | `alive("exec.yml")` | Check exec status before triggering |
-| 3️⃣ | `concurrency: exec` | Platform-level singleton guarantee |
+| 1️⃣ | `alive("exec.yml")` | Code: skip if exec is already running |
+| 2️⃣ | `concurrency: exec` | Platform: singleton guarantee |
 
 ### Self-Destroy on Update
 
@@ -47,6 +48,15 @@ tick-c (for loop, 5h resident, min%3==2) ──┘                              
 |-------|-----------|-------------|
 | 🅰️ | `cancel-in-progress: true` | Platform: new run cancels old run |
 | 🅱️ | `check_newer()` per loop | Code: detect newer run_id → `sys.exit` |
+
+### Fault Tolerance
+
+```
+3 alive: 3 attempt, exec runs 1  ✅
+2 alive: 2 attempt, exec runs 1  ✅
+1 alive: 1 attempt, exec runs 1  ✅
+0 alive: manual recovery needed  🔄
+```
 
 ## 📁 Files
 
