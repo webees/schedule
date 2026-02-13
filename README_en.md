@@ -2,102 +2,73 @@
 
 [简体中文](README.md) | [繁體中文](README_zh-TW.md)
 
-🎯 Precise self-scheduling system — three resident chains + singleton executor + guardian, bypassing GitHub cron throttling.
+> 🎯 **Make GitHub Actions trigger precisely every minute.**
+
+## ✨ Highlights
+
+- ⏱️ **Minute-level precision** — bypass GitHub cron's 5-min minimum + throttling delays
+- 🔒 **Git Ref atomic lock** — dual-chain race, server-side guarantee of exactly 1 exec
+- 🛡️ **Self-healing** — mutual guardianship + auto-renewal, 7×24 unattended
+- 📦 **Minimal** — 2 Python scripts (56 + 20 lines), zero external dependencies
 
 ## ❌ Problem
 
-GitHub Actions cron scheduling has severe throttling: a 5-minute interval can actually become 50+ minutes.
+GitHub Actions cron has a 5-minute minimum interval, with actual delays reaching **50+ minutes**.
 
 ## ✅ Solution
 
-Three tick chains reside in VMs via for-loops (~5h per cycle), aligning to exact minute boundaries to trigger a singleton business executor.
+Dual tick chains reside in VMs via for-loops (~5h each), aligning to exact minute boundaries, competing through **Git Ref atomic locks** to trigger a singleton executor.
 
 ## 🏗️ Architecture
 
 ```
 tick-a (for loop, 5h resident) ──┐
-tick-b (for loop, 5h resident) ──┼── all attempt every minute ──→ exec.yml (singleton)
-tick-c (for loop, 5h resident) ──┘                                       │
-         ▲                                                               ▼
-    guard.yml (singleton reviver)                               trigger external repos
+                                 ├── atomic lock race ──→ exec.yml (singleton) ──→ external repos
+tick-b (for loop, 5h resident) ──┘
+         ↕ mutual guard
+    guard.yml (reviver)
 ```
-
-## ⏱️ Timing
-
-| Min | :00 | :01 | :02 | :03 | :04 | :05 |
-|-----|-----|-----|-----|-----|-----|-----|
-| tick-a | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| tick-b | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| tick-c | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| exec | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
-> All three ticks attempt every minute; dedup guarantees exec runs exactly once
 
 ## 🔧 Core Mechanisms
 
-### Deduplication
+### 🔒 Git Ref Atomic Lock
 
-| Layer | Mechanism | Description |
-|-------|-----------|-------------|
-| 1️⃣ | `alive("exec.yml")` | Code: skip if exec is already running |
-| 2️⃣ | `concurrency: exec` | Platform: singleton guarantee |
+```python
+# Create unique tag per minute: refs/tags/lock/exec-202602140445
+# GitHub API guarantees: same ref can only be created once
 
-### Self-Destroy on Update
-
-| Layer | Mechanism | Description |
-|-------|-----------|-------------|
-| 🅰️ | `cancel-in-progress: true` | Platform: new run cancels old run |
-| 🅱️ | `check_newer()` per loop | Code: detect newer run_id → `sys.exit` |
-
-### 🛡️ Mutual Guardianship — guard.yml revives dead chains
-
-After completing its 5-hour loop, each tick checks if sibling chains are alive:
-
-```
-tick-a loop ends → check tick-b, tick-c status
-  ├── all alive → no action
-  └── tick-b dead → trigger guard.yml
-                         │
-                         ▼
-               guard.yml (concurrency: cancel-in-progress)
-               ├── check tick-a → ✅ alive, skip
-               ├── check tick-b → 🚨 dead, revive, sleep 60s
-               └── check tick-c → ✅ alive, skip
+tick-a: POST /git/refs → 201 Created  ✅ lock acquired → trigger exec
+tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 ```
 
-**guard.yml features:**
-- `cancel-in-progress: true` — multiple ticks triggering guard at once → only one runs
-- Staggered revival — sleep 60s between each revive to avoid simultaneous startup
+### 🛡️ Self-Healing
 
-### Fault Tolerance
-
-```
-3 alive: 3 attempt, exec runs 1  ✅
-2 alive: 2 attempt, exec runs 1  ✅
-1 alive: 1 attempt, exec runs 1  ✅
-0 alive: manual recovery needed  🔄
-```
+| Mechanism | Description |
+|-----------|-------------|
+| **Auto-renewal** | Triggers next cycle after 300 rounds |
+| **Mutual guard** | Each tick checks its sibling on exit, revives if dead |
+| **Self-destroy** | `cancel-in-progress: true` + code-level run_id detection |
 
 ## 📁 Files
 
 ```
 .github/workflows/
-├── tick-a/b/c.yml    ⏱️ Timers (only name differs, logic shared via tick.py)
-├── exec.yml          🚀 Business executor (singleton)
-└── guard.yml         🛡️ Guardian (singleton)
+├── tick-a.yml / tick-b.yml   ⏱️ Timers
+├── exec.yml                  🚀 Business executor (singleton)
+└── guard.yml                 🛡️ Guardian
 
 scripts/
-├── tick.py           ⏱️ Timer logic (~50 lines)
-└── guard.py          🛡️ Guardian logic (~20 lines)
+├── tick.py    ⏱️ Timer + atomic lock (56 lines)
+└── guard.py   🛡️ Guardian logic (20 lines)
 ```
 
 ## 🚀 Startup
 
 ```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60 && gh workflow run tick-c.yml
+gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
 ```
 
-Or just `git push` to main — all three chains start automatically.
+Or just `git push` to main — both chains start automatically.
 
 ## 📄 License
 

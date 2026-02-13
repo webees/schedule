@@ -2,112 +2,99 @@
 
 [English](README_en.md) | [繁體中文](README_zh-TW.md)
 
-🎯 精准自调度系统 — 三链驻留 + 单例执行器 + 守护者，绕过 GitHub cron 节流限制。
+> 🎯 **让 GitHub Actions 每分钟精确触发一次。**
+
+## ✨ 亮点
+
+- ⏱️ **分钟级精度** — 突破 GitHub cron 5 分钟最小间隔 + 节流延迟
+- 🔒 **Git Ref 原子锁** — 双链竞态触发，服务端保证只有 1 个 exec 执行
+- 🛡️ **自愈架构** — 互守护 + 自续期，7×24 无人值守
+- 📦 **极简实现** — 2 个 Python 脚本 (56 + 20 行)，零外部依赖
 
 ## ❌ 问题
 
-GitHub Actions 的 cron 调度存在严重节流：设定每 5 分钟执行，实际间隔可达 50+ 分钟。
+GitHub Actions cron 最小间隔 5 分钟，实际调度延迟可达 **50+ 分钟**。
 
 ## ✅ 方案
 
-三条 tick 链在 VM 内以 for 循环驻留（每轮 5 小时），对齐整分钟精准触发单例业务执行器。
+双 tick 链在 VM 内以 for 循环驻留 5 小时，每分钟对齐整点，通过 **Git Ref 原子锁** 竞争触发单例执行器。
 
 ## 🏗️ 架构
 
 ```
 tick-a (for循环, 驻留5h) ──┐
-tick-b (for循环, 驻留5h) ──┼── 每分钟全部尝试触发 ──→ exec.yml (单例)
-tick-c (for循环, 驻留5h) ──┘                              │
-         ▲                                                ▼
-    guard.yml (单例唤醒者)                         触发外部仓库
+                           ├── 原子锁竞争 ──→ exec.yml (单例) ──→ 外部仓库
+tick-b (for循环, 驻留5h) ──┘
+         ↕ 互守护
+    guard.yml (唤醒者)
 ```
 
 ## ⏱️ 时序
 
 | 分钟 | :00 | :01 | :02 | :03 | :04 | :05 |
 |------|-----|-----|-----|-----|-----|-----|
-| tick-a | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| tick-b | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| tick-c | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 | 🎯 |
-| exec | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| tick-a | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 |
+| tick-b | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 | 🔒 尝试 |
+| 获锁者 | 🎯 a | 🎯 b | 🎯 a | 🎯 b | 🎯 a | 🎯 b |
+| exec | ✅ 1次 | ✅ 1次 | ✅ 1次 | ✅ 1次 | ✅ 1次 | ✅ 1次 |
 
-> 三条 tick 都尝试触发，去重机制保证 exec 每分钟只执行一次
+> 谁先抢到锁谁触发，**每分钟必定且仅有 1 次 exec**
 
 ## 🔧 核心机制
 
-### 去重 — exec 始终只有一个在跑
+### 🔒 Git Ref 原子锁 — 精确一次的核心
 
-| 层级 | 机制 | 说明 |
-|------|------|------|
-| 1️⃣ | `alive("exec.yml")` | 代码级：exec 在运行就跳过触发 |
-| 2️⃣ | `concurrency: exec` | 平台级：万一同时触发也只跑一个 |
+```python
+# 每分钟创建唯一 tag: refs/tags/lock/exec-202602140445
+# GitHub API 保证: 同名 ref 只能创建一次
 
-### 新实例自毁 — 代码更新后旧链秒退
-
-| 层级 | 机制 | 说明 |
-|------|------|------|
-| 🅰️ | `cancel-in-progress: true` | 平台级：新 run 取消旧 run |
-| 🅱️ | `check_newer()` 每轮检测 | 代码级：检测到更新 run_id 则 `sys.exit` |
-
-### 🛡️ 互守护 — guard.yml 自动唤醒死掉的链
-
-每条 tick 在 5 小时循环结束后，会检查兄弟链是否存活：
-
-```
-tick-a 循环结束 → 检查 tick-b, tick-c 状态
-  ├── 全部存活 → 无操作
-  └── 发现 tick-b 死了 → 触发 guard.yml
-                              │
-                              ▼
-                    guard.yml (concurrency: cancel-in-progress)
-                    ├── 检查 tick-a → ✅ 存活, 跳过
-                    ├── 检查 tick-b → 🚨 已停止, 唤醒, sleep 60s
-                    └── 检查 tick-c → ✅ 存活, 跳过
+tick-a: POST /git/refs → 201 Created  ✅ 获锁 → 触发 exec
+tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 ```
 
-**guard.yml 特性：**
-- `cancel-in-progress: true` — 多条 tick 同时触发 guard 时只执行一次
-- 交错唤醒 — 每唤起一条链后 sleep 60s，避免同时启动
+| 特性 | 说明 |
+|------|------|
+| 原子性 | GitHub 服务端保证，不可能两个同时成功 |
+| 无竞态 | 不依赖 `alive()` 检查，无 API 延迟问题 |
+| 自清理 | 旧 lock tag 每 30 轮自动删除 |
 
-### 容错 — 任意一条活着就不遗漏
+### 🛡️ 自愈
+
+| 机制 | 说明 |
+|------|------|
+| **自续期** | 300 轮结束后自动触发下一轮 |
+| **互守护** | tick 结束时检查兄弟，死亡则触发 guard 唤醒 |
+| **新实例自毁** | `cancel-in-progress: true` + 代码级 run_id 检测 |
+
+### 容错
 
 ```
-3 条存活: 3 个尝试触发, exec 跑 1 次 ✅
-2 条存活: 2 个尝试触发, exec 跑 1 次 ✅
-1 条存活: 1 个尝试触发, exec 跑 1 次 ✅
-0 条存活: 全灭, 手动恢复任意一条     🔄
+2 条存活: 2 个竞争锁, exec 跑 1 次 ✅
+1 条存活: 1 个直接获锁, exec 跑 1 次 ✅
+0 条存活: 手动触发任意一条 tick       🔄
 ```
 
 ## 📁 文件结构
 
 ```
 .github/workflows/
-├── tick-a.yml        ⏱️ 定时器 A (仅 name 不同)
-├── tick-b.yml        ⏱️ 定时器 B
-├── tick-c.yml        ⏱️ 定时器 C
-├── exec.yml          🚀 业务执行器 (单例)
-└── guard.yml         🛡️ 守护者 (单例)
+├── tick-a.yml      ⏱️ 定时器 A (仅 name 不同)
+├── tick-b.yml      ⏱️ 定时器 B
+├── exec.yml        🚀 业务执行器 (单例)
+└── guard.yml       🛡️ 守护者
 
 scripts/
-├── tick.py           ⏱️ 定时器逻辑 (~50 行, abc 共用)
-└── guard.py          🛡️ 守护逻辑 (~20 行)
+├── tick.py         ⏱️ 定时器 + 原子锁 (56 行)
+└── guard.py        🛡️ 守护逻辑 (20 行)
 ```
 
 ## 🚀 启动
 
 ```bash
-gh workflow run tick-a.yml
-sleep 60
-gh workflow run tick-b.yml
-sleep 60
-gh workflow run tick-c.yml
+gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
 ```
 
-或直接 `git push` 到 main — 三条链自动启动，旧链自动销毁。
-
-## 🔄 全灭恢复
-
-手动触发任意一条 tick → 守护机制自动唤起其他链。
+或直接 `git push` 到 main — 双链自动启动。
 
 ## 📄 授权
 
