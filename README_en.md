@@ -45,9 +45,17 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 | Mechanism | Description |
 |-----------|-------------|
-| **Auto-renewal** | Triggers next cycle after 300 rounds |
+| **Staggered renewal** | tick-a=300 rounds(5h), tick-b=330 rounds(5.5h), never gap simultaneously |
+| **Auto-renewal** | Triggers next cycle after rounds complete |
 | **Mutual guard** | Each tick checks its sibling on exit, revives if dead |
 | **Self-destroy** | `cancel-in-progress: true` + code-level run_id detection |
+
+```
+hours: 0        5     5.5      10    10.5
+tick-a: |== 300r ==|renew|== 300r ==|renew...
+tick-b: |=== 330r ===|renew|=== 330r ===|renew...
+                   ↑ never gap at the same time
+```
 
 ## 📁 Files
 
