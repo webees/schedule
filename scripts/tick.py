@@ -18,7 +18,7 @@ def alive(wf):
 def main():
     print(f"🚀 {SELF} (run={RUN})")
 
-    for _ in range(300):  # 300 轮 ≈ 5h
+    for i in range(1, 301):  # 300 轮 ≈ 5h
         # 新实例检测 → 自毁
         for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                        "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO).splitlines():
@@ -27,11 +27,14 @@ def main():
 
         # 对齐整分钟
         time.sleep(60 - time.time() % 60)
+        ts = time.strftime('%H:%M:%S', time.gmtime())
 
         # exec 空闲 → 触发 (三条 tick 都尝试, alive+concurrency 保证单例)
         if not alive("exec.yml"):
-            print(f"🎯 {time.strftime('%H:%M:%S', time.gmtime())} exec")
+            print(f"🎯 [{i}/300] {ts} 触发 exec")
             gh("workflow", "run", "exec.yml", "-R", REPO)
+        else:
+            print(f"⏭️ [{i}/300] {ts} exec 运行中")
 
     # 续期 (无排队才触发)
     q = gh("run", "list", "-w", f"{SELF}.yml", "-s", "queued",
