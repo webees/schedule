@@ -2,82 +2,90 @@
 
 [简体中文](README.md) | [繁體中文](README_zh-TW.md)
 
-> 🎯 **Make GitHub Actions trigger precisely every minute.**
+> **Make GitHub Actions execute precisely every minute, bypassing cron's 5-min minimum and throttling delays.**
 
 ## ✨ Highlights
 
-- ⏱️ **Minute-level precision** — bypass GitHub cron's 5-min minimum + throttling delays
-- 🔒 **Git Ref atomic lock** — dual-chain race, server-side guarantee of exactly 1 exec
-- 🛡️ **Self-healing** — mutual guardianship + auto-renewal, 7×24 unattended
-- 📦 **Minimal** — 2 Python scripts (56 + 20 lines), zero external dependencies
+| | |
+|---|---|
+| ⏱️ **Minute precision** | `time.sleep(60 - time.time() % 60)` aligns to exact minute boundaries |
+| 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 exec |
+| 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
+| 📦 **Minimal code** | tick.py 56 lines + guard.py 20 lines, zero external dependencies |
 
-## ❌ Problem
+---
 
-GitHub Actions cron has a 5-minute minimum interval, with actual delays reaching **50+ minutes**.
-
-## ✅ Solution
-
-Dual tick chains reside in VMs via for-loops (~5h each), aligning to exact minute boundaries, competing through **Git Ref atomic locks** to trigger a singleton executor.
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 tick-a (for loop, 5h resident) ──┐
-                                 ├── atomic lock race ──→ exec.yml (singleton) ──→ external repos
-tick-b (for loop, 5h resident) ──┘
+                                 ├── Git Ref atomic lock ──→ exec.yml ──→ external repos
+tick-b (for loop, 5.5h resident) ┘
          ↕ mutual guard
-    guard.yml (reviver)
+    guard.yml
 ```
 
-## 🔧 Core Mechanisms
+## Atomic Lock
 
-### 🔒 Git Ref Atomic Lock
+Both ticks attempt to create the same Git Ref each minute. GitHub guarantees only one succeeds:
 
-```python
-# Create unique tag per minute: refs/tags/lock/exec-202602140445
-# GitHub API guarantees: same ref can only be created once
-
+```
 tick-a: POST /git/refs → 201 Created  ✅ lock acquired → trigger exec
 tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 ```
 
-### 🛡️ Self-Healing
+| Property | Description |
+|----------|-------------|
+| Atomic | Same ref cannot be created twice |
+| Race-free | No status polling, no API delay window |
+| Self-cleaning | Old lock tags auto-deleted every 30 rounds |
+
+## Self-Healing
 
 | Mechanism | Description |
 |-----------|-------------|
-| **Staggered renewal** | tick-a=300 rounds(5h), tick-b=330 rounds(5.5h), never gap simultaneously |
-| **Auto-renewal** | Triggers next cycle after rounds complete |
-| **Mutual guard** | Each tick checks its sibling on exit, revives if dead |
-| **Self-destroy** | `cancel-in-progress: true` + code-level run_id detection |
+| Staggered renewal | tick-a 300 rounds / tick-b 330 rounds, never gap simultaneously |
+| Auto-renewal | `workflow_dispatch` next cycle on completion |
+| Mutual guard | Check sibling on exit, trigger guard if dead |
+| Self-destroy | `cancel-in-progress` + run_id detection, instant switch on push |
 
-| Hour | 0 | 5 | 5.5 | 10 | 10.5 | 11 |
-|------|---|---|-----|----|----- |----|
-| tick-a | 🟢 300r running | 🔄 renew | 🟢 running | 🟢 running | 🔄 renew | 🟢 |
-| tick-b | 🟢 330r running | 🟢 running | 🔄 renew | 🟢 running | 🟢 running | 🔄 |
+| Hour | 0 | 5 | 5.5 | 10 | 10.5 |
+|------|---|---|-----|----|----- |
+| tick-a | 🟢 running | 🔄 renew | 🟢 running | 🟢 running | 🔄 renew |
+| tick-b | 🟢 running | 🟢 running | 🔄 renew | 🟢 running | 🟢 running |
 
-> Renewal never overlaps — at least 1 chain is always online
+> At least 1 chain is always online
 
-## 📁 Files
+## Fault Tolerance
+
+| Scenario | Result |
+|----------|--------|
+| Both alive | 2 race → exec 1 time ✅ |
+| One alive | 1 direct lock → exec 1 time ✅ |
+| Both dead | Manual trigger any tick 🔄 |
+
+## Files
 
 ```
 .github/workflows/
-├── tick-a.yml / tick-b.yml   ⏱️ Timers
-├── exec.yml                  🚀 Business executor (singleton)
-└── guard.yml                 🛡️ Guardian
+├── tick-a.yml    Timer A (300 rounds ≈ 5h)
+├── tick-b.yml    Timer B (330 rounds ≈ 5.5h)
+├── exec.yml      Business executor
+└── guard.yml     Guardian
 
 scripts/
-├── tick.py    ⏱️ Timer + atomic lock (56 lines)
-└── guard.py   🛡️ Guardian logic (20 lines)
+├── tick.py       Timer + atomic lock (56 lines)
+└── guard.py      Guardian logic (20 lines)
 ```
 
-## 🚀 Startup
+## Startup
 
 ```bash
 gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
 ```
 
-Or just `git push` to main — both chains start automatically.
+Or `git push main` to auto-start both chains.
 
-## 📄 License
+## License
 
 [MIT](LICENSE)
