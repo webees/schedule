@@ -8,7 +8,7 @@ def gh(*a):
     return subprocess.run(["gh", *a], capture_output=True, text=True).stdout.strip()
 
 
-for t in ("tick-a", "tick-b", "tick-c"):
+for t in ("tick-a", "tick-b"):
     s = gh("run", "list", "-w", f"{t}.yml", "--json", "status",
            "-q", ".[0].status", "-R", REPO, "--limit", "1")
     if s not in ("in_progress", "queued"):

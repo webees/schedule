@@ -52,7 +52,7 @@ for i in range(1, 301):
 
 # 续期 + 守护
 dispatch(SELF)
-for x in ("tick-a", "tick-b", "tick-c"):
+for x in ("tick-a", "tick-b"):
     if x != SELF and not alive(x):
         dispatch("guard"); break
 clean()
