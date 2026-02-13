@@ -28,8 +28,7 @@ def gh_json(*args):
 
 def run_status(workflow):
     """获取 workflow 最新 run 的 status"""
-    runs = gh_json("run", "list", "-w", workflow, "--json", "status", "-q", ".[0].status", "-R", REPO, "--limit", "1")
-    return runs if isinstance(runs, str) else ""
+    return gh("run", "list", "-w", workflow, "--json", "status", "-q", ".[0].status", "-R", REPO, "--limit", "1")
 
 
 def cancel_old():
