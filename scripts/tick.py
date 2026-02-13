@@ -1,5 +1,5 @@
 """tick.py — 三链定时器 (env: SELF, REPO, RUN_ID)"""
-import os, subprocess, sys, time
+import os, random, subprocess, sys, time
 
 SELF = os.environ["SELF"]
 REPO = os.environ["REPO"]
@@ -27,9 +27,12 @@ def main():
 
         # 对齐整分钟
         time.sleep(60 - time.time() % 60)
+
+        # 随机延迟 0~10s 打破竞态 (第一个检查的触发, 其余跳过)
+        time.sleep(random.uniform(0, 10))
         ts = time.strftime('%H:%M:%S', time.gmtime())
 
-        # exec 空闲 → 触发 (三条 tick 都尝试, alive+concurrency 保证单例)
+        # exec 空闲 → 触发
         if not alive("exec.yml"):
             print(f"🎯 [{i}/300] {ts} 触发 exec")
             gh("workflow", "run", "exec.yml", "-R", REPO)
