@@ -18,16 +18,9 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: 🚀 业务执行
-        run: |
-          echo "exec | ${{ inputs.interval }} | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
-
-          if [ "${{ inputs.interval }}" = "1m" ]; then
-            echo "--- 1分钟业务 ---"
-            # TODO: 每分钟任务
-          fi
-
-          if [ "${{ inputs.interval }}" = "5m" ]; then
-            echo "--- 5分钟业务 ---"
-            # TODO: 每5分钟任务
-          fi
+      - uses: actions/checkout@v4
+      - run: python3 scripts/exec.py
+        env:
+          PYTHONUNBUFFERED: "1"
+          GH_TOKEN: ${{ github.token }}
+          INTERVAL: ${{ inputs.interval }}
