@@ -50,12 +50,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | **Mutual guard** | Each tick checks its sibling on exit, revives if dead |
 | **Self-destroy** | `cancel-in-progress: true` + code-level run_id detection |
 
-```
-hours: 0        5     5.5      10    10.5
-tick-a: |== 300r ==|renew|== 300r ==|renew...
-tick-b: |=== 330r ===|renew|=== 330r ===|renew...
-                   ↑ never gap at the same time
-```
+| Hour | 0 | 5 | 5.5 | 10 | 10.5 | 11 |
+|------|---|---|-----|----|----- |----|
+| tick-a | 🟢 300r running | 🔄 renew | 🟢 running | 🟢 running | 🔄 renew | 🟢 |
+| tick-b | 🟢 330r running | 🟢 running | 🔄 renew | 🟢 running | 🟢 running | 🔄 |
+
+> Renewal never overlaps — at least 1 chain is always online
 
 ## 📁 Files
 
