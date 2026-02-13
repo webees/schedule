@@ -11,7 +11,7 @@
 | ⏱️ **Minute precision** | `time.sleep(60 - time.time() % 60)` aligns to exact minute boundaries |
 | 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 exec |
 | 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
-| 📦 **Minimal code** | tick.py 56 lines + guard.py 20 lines, zero external dependencies |
+| 📦 **Minimal code** | tick.py 46 lines + guard.py 8 lines, zero external dependencies |
 
 ---
 
@@ -46,7 +46,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 |-----------|-------------|
 | Staggered renewal | tick-a 300 rounds / tick-b 330 rounds, never gap simultaneously |
 | Auto-renewal | `workflow_dispatch` next cycle on completion |
-| Mutual guard | Check sibling on exit, trigger guard if dead |
+| Mutual guard | Check sibling every minute, trigger guard if dead |
 | Self-destroy | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -74,8 +74,8 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 └── guard.yml     Guardian
 
 scripts/
-├── tick.py       Timer + atomic lock (56 lines)
-└── guard.py      Guardian logic (20 lines)
+├── tick.py       Timer + atomic lock (46 lines)
+└── guard.py      Guardian logic (8 lines)
 ```
 
 ## Startup

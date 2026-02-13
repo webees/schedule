@@ -11,7 +11,7 @@
 | ⏱️ **分鐘級精度** | `time.sleep(60 - time.time() % 60)` 對齊整分鐘邊界 |
 | 🔒 **原子級去重** | Git Ref 創建天然原子，雙鏈競態只有 1 個 exec |
 | 🛡️ **7×24 自癒** | 自續期 + 互守護 + 錯開空窗，無人值守 |
-| 📦 **極簡程式碼** | tick.py 56 行 + guard.py 20 行，零外部依賴 |
+| 📦 **極簡程式碼** | tick.py 46 行 + guard.py 8 行，零外部依賴 |
 
 ---
 
@@ -46,7 +46,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 |------|------|
 | 錯開續期 | tick-a 300 輪 / tick-b 330 輪，永不同時空窗 |
 | 自續期 | 輪次結束自動 `workflow_dispatch` 下一輪 |
-| 互守護 | 結束時檢查兄弟存活，死亡則觸發 guard 喚醒 |
+| 互守護 | 每分鐘檢查兄弟存活，死亡則觸發 guard 喚醒 |
 | 自毀 | `cancel-in-progress` + run_id 偵測，新程式碼推送秒切換 |
 
 | 小時 | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -74,8 +74,8 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 └── guard.yml     守護者
 
 scripts/
-├── tick.py       定時器 + 原子鎖 (56 行)
-└── guard.py      守護邏輯 (20 行)
+├── tick.py       定時器 + 原子鎖 (46 行)
+└── guard.py      守護邏輯 (8 行)
 ```
 
 ## 啟動
