@@ -1,6 +1,6 @@
 # Schedule
 
-[English](README_en.md) | [繁體中文](README_zh-TW.md)
+[简体中文](README.md) | [English](README_en.md)
 
 精準自調度系統 — 三鏈駐留 + 單例執行器 + 守護者，繞過 GitHub cron 節流限制。
 
@@ -10,14 +10,14 @@ GitHub Actions 的 cron 調度存在嚴重節流：設定每 5 分鐘執行，�
 
 ## 方案
 
-三條 tick 鏈在 VM 內以 for 循環駐留（每輪 5 小時），對齊整分鐘精準觸發單例業務執行器。
+三條 tick 鏈在 VM 內以 for 迴圈駐留（每輪 5 小時），對齊整分鐘精準觸發單例業務執行器。
 
 ## 架構
 
 ```
-tick-a (for循環, 駐留5h, 負責 min%3==0) ──┐
-tick-b (for循環, 駐留5h, 負責 min%3==1) ──┼── 每分鐘恰好一個觸發 ──→ exec.yml (單例)
-tick-c (for循環, 駐留5h, 負責 min%3==2) ──┘                              │
+tick-a (for迴圈, 駐留5h, 負責 min%3==0) ──┐
+tick-b (for迴圈, 駐留5h, 負責 min%3==1) ──┼── 每分鐘恰好一個觸發 ──→ exec.yml (單例)
+tick-c (for迴圈, 駐留5h, 負責 min%3==2) ──┘                              │
          ▲                                                               ▼
     guard.yml (單例喚醒者)                                        觸發外部倉庫
 ```
@@ -37,7 +37,7 @@ exec:   █    █    █    █    █    █    █               ← 每分�
 ### 精準對齊
 
 ```bash
-# 每次循環對齊到整分鐘
+# 每次迴圈對齊到整分鐘
 SEC=$(date -u '+%-S')
 WAIT=$((60 - SEC))
 sleep $WAIT
@@ -59,15 +59,15 @@ tick-c 發現 tick-b 死了 → 也觸發 guard.yml → 被 cancel-in-progress �
 guard 單例運行 → 檢查所有 tick → 喚起死掉的鏈
 ```
 
-## 文件
+## 檔案
 
-| 文件 | 作用 | 生命週期 |
+| 檔案 | 作用 | 生命週期 |
 |------|------|---------|
-| `tick-a/b/c.yml` | 定時器 (for 循環駐留) | ~5h/輪, 自動續期 |
+| `tick-a/b/c.yml` | 定時器 (for 迴圈駐留) | ~5h/輪, 自動續期 |
 | `exec.yml` | 業務執行器 (單例) | 每次觸發 ~30s |
 | `guard.yml` | 守護者 (喚醒死掉的 tick) | 按需 |
 
-> tick-a/b/c 三個文件邏輯完全一致, 僅 `name:` 不同, 通過 `github.workflow` 動態推導身份。
+> tick-a/b/c 三個檔案邏輯完全一致, 僅 `name:` 不同, 透過 `github.workflow` 動態推導身份。
 
 ## 啟動
 
@@ -78,16 +78,6 @@ gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60
 ## 全滅恢復
 
 手動觸發任意一條 tick → 守護機制自動喚起其他鏈。
-
-## 資源消耗
-
-| 組件 | VM 啟動次數/天 | 說明 |
-|------|--------------|------|
-| tick-a/b/c (各) | ~5 次 | VM 駐留 5h, 自動續期 |
-| exec | ~1440 次 | 每分鐘觸發, 秒級完成 |
-| guard | 偶爾 | 僅在 tick 死亡時觸發 |
-
-公開倉庫 Actions 分鐘無限制, 零費用。
 
 ## 授權
 
