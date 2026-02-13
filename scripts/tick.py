@@ -1,81 +1,58 @@
-"""tick.py — 三链定时器 (env: SELF, REPO, RUN_ID)"""
+"""tick.py — 三链定时器 + Git Ref 原子锁 (env: SELF, REPO, RUN_ID)"""
 import os, subprocess, sys, time
 
-SELF = os.environ["SELF"]
-REPO = os.environ["REPO"]
-RUN  = int(os.environ["RUN_ID"])
+SELF, REPO, RUN = os.environ["SELF"], os.environ["REPO"], int(os.environ["RUN_ID"])
+P = f"/repos/{REPO}"
 
 
 def gh(*a):
-    return subprocess.run(["gh", *a], capture_output=True, text=True).stdout.strip()
+    r = subprocess.run(["gh", *a], capture_output=True, text=True)
+    return r.stdout.strip(), r.returncode
+
+
+def api(*a): return gh("api", *a)[0]
+
+
+def lock(m):
+    sha = api(f"{P}/git/ref/heads/main", "-q", ".object.sha")
+    return sha and gh("api", f"{P}/git/refs", "-f",
+                      f"ref=refs/tags/lock/exec-{m}", "-f", f"sha={sha}")[1] == 0
+
+
+def clean():
+    now = time.strftime('%Y%m%d%H%M', time.gmtime())
+    for ref in api(f"{P}/git/refs/tags/lock", "-q", ".[].ref").splitlines():
+        if ref.rsplit("-", 1)[-1] < now:
+            gh("api", "-X", "DELETE", f"{P}/git/{ref}")
+
+
+def dispatch(wf):
+    gh("workflow", "run", f"{wf}.yml", "-R", REPO)
 
 
 def alive(wf):
-    return gh("run", "list", "-w", wf, "--json", "status",
-              "-q", ".[0].status", "-R", REPO, "--limit", "1") in ("in_progress", "queued")
+    return gh("run", "list", "-w", f"{wf}.yml", "--json", "status",
+              "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
 
-def try_lock(minute):
-    """原子锁: 创建 git ref, 201=获锁, 422=已占"""
-    sha = gh("api", f"/repos/{REPO}/git/ref/heads/main", "-q", ".object.sha")
-    if not sha:
-        return False
-    r = subprocess.run(
-        ["gh", "api", f"/repos/{REPO}/git/refs",
-         "-f", f"ref=refs/tags/lock/exec-{minute}", "-f", f"sha={sha}"],
-        capture_output=True, text=True)
-    return r.returncode == 0
+print(f"🚀 {SELF} run={RUN}")
+for i in range(1, 301):
+    # 自毁检测
+    for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
+                  "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
+        if rid and int(rid) > RUN: sys.exit(print(f"🛑 #{rid} 更新, 退出"))
 
+    time.sleep(60 - time.time() % 60)
+    t, m = time.strftime('%H:%M:%S', time.gmtime()), time.strftime('%Y%m%d%H%M', time.gmtime())
 
-def cleanup_locks():
-    """清理旧 lock tag"""
-    refs = gh("api", f"/repos/{REPO}/git/refs/tags/lock",
-              "-q", ".[].ref", "--paginate")
-    now = time.strftime('%Y%m%d%H%M', time.gmtime())
-    for ref in refs.splitlines():
-        minute = ref.rsplit("-", 1)[-1]  # exec-202602140430 → 202602140430
-        if minute < now:
-            gh("api", "-X", "DELETE", f"/repos/{REPO}/git/{ref}")
+    won = lock(m)
+    print(f"{'🎯' if won else '⏭️'} [{i}/300] {t} {'获锁 → exec' if won else '锁已占'}")
+    if won: dispatch("exec")
+    if i % 30 == 0: clean()
 
-
-def main():
-    print(f"🚀 {SELF} (run={RUN})")
-
-    for i in range(1, 301):  # 300 轮 ≈ 5h
-        # 新实例检测 → 自毁
-        for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
-                       "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO).splitlines():
-            if rid and int(rid) > RUN:
-                sys.exit(print(f"🛑 新实例 #{rid}, 退出"))
-
-        # 对齐整分钟
-        time.sleep(60 - time.time() % 60)
-        ts = time.strftime('%H:%M:%S', time.gmtime())
-        minute = time.strftime('%Y%m%d%H%M', time.gmtime())
-
-        # 原子锁竞争: 3 条 tick 同时尝试创建同名 ref, 只有 1 个成功
-        if try_lock(minute):
-            print(f"🎯 [{i}/300] {ts} 获锁, 触发 exec")
-            gh("workflow", "run", "exec.yml", "-R", REPO)
-        else:
-            print(f"⏭️ [{i}/300] {ts} 锁已被占")
-
-        # 每 30 轮清理旧锁
-        if i % 30 == 0:
-            cleanup_locks()
-
-    # 续期
-    if not alive(f"{SELF}.yml"):
-        gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
-
-    # 守护兄弟
-    for t in ("tick-a", "tick-b", "tick-c"):
-        if t != SELF and not alive(f"{t}.yml"):
-            gh("workflow", "run", "guard.yml", "-R", REPO)
-            break
-
-    cleanup_locks()
-
-
-if __name__ == "__main__":
-    main()
+# 续期 + 守护
+dispatch(SELF)
+for x in ("tick-a", "tick-b", "tick-c"):
+    if x != SELF and not alive(x):
+        dispatch("guard"); break
+clean()
