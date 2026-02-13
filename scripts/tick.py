@@ -34,7 +34,7 @@ for i in range(1, N + 1):
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                   "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
         if rid and int(rid) > RUN: sys.exit(print(f"🛑 #{rid} 更新, 退出"))
-    time.sleep(60 - time.time() % 60)
+    time.sleep(60 - time.time() % 60 or 0.1)  # %60==0 时避免 sleep(0)
     t, m = time.strftime('%H:%M:%S', time.gmtime()), time.strftime('%Y%m%d%H%M', time.gmtime())
     won, reason = lock(m)
     print(f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} {'获锁→exec' if won else f'锁已占({reason})'}")

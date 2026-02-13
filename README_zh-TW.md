@@ -46,7 +46,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 |------|------|
 | 錯開續期 | tick-a 300 輪 / tick-b 330 輪，永不同時空窗 |
 | 自續期 | 輪次結束自動 `workflow_dispatch` 下一輪 |
-| 互守護 | 每分鐘檢查兄弟存活，死亡則觸發 guard 喚醒 |
+| 互守護 | 每 5 分鐘檢查兄弟存活，死亡則觸發 guard 喚醒 |
 | 自毀 | `cancel-in-progress` + run_id 偵測，新程式碼推送秒切換 |
 
 | 小時 | 0 | 5 | 5.5 | 10 | 10.5 |
