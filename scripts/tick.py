@@ -1,92 +1,50 @@
-"""tick.py — 定时器核心逻辑
-
-环境变量:
-  SELF   — tick 名称 (tick-a / tick-b / tick-c)
-  REPO   — 仓库 (owner/repo)
-  RUN_ID — 当前 run ID (用于判断是否为最新)
-"""
+"""tick.py — 三链定时器 (env: SELF, REPO, RUN_ID)"""
 import os, subprocess, sys, time
 
-SELF   = os.environ["SELF"]
-REPO   = os.environ["REPO"]
-RUN_ID = int(os.environ["RUN_ID"])
-OFFSET = {"a": 0, "b": 1, "c": 2}[SELF[-1]]
-ROUNDS = 300  # 300 轮 × ~60s ≈ 5h
+SELF = os.environ["SELF"]
+REPO = os.environ["REPO"]
+RUN  = int(os.environ["RUN_ID"])
+OFF  = ord(SELF[-1]) - ord("a")  # a→0 b→1 c→2
 
 
-def gh(*args):
-    """调用 gh CLI, 返回 stdout"""
-    r = subprocess.run(["gh", *args], capture_output=True, text=True)
-    return r.stdout.strip()
+def gh(*a):
+    return subprocess.run(["gh", *a], capture_output=True, text=True).stdout.strip()
 
 
-def run_status(workflow):
-    """获取 workflow 最新 run 的 status"""
-    return gh("run", "list", "-w", workflow, "--json", "status", "-q", ".[0].status", "-R", REPO, "--limit", "1")
-
-
-def check_newer():
-    """检测是否有更新的实例, 有则自我销毁"""
-    ids = gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
-             "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)
-    for rid in ids.splitlines():
-        if rid and int(rid) > RUN_ID:
-            print(f"🛑 检测到新实例 #{rid}, 自我销毁")
-            sys.exit(0)
-
-
-def trigger_exec():
-    """检查并触发 exec"""
-    s = run_status("exec.yml")
-    if s not in ("in_progress", "queued"):
-        print(f"🎯 {time.strftime('%H:%M:%S', time.gmtime())} 触发 exec")
-        gh("workflow", "run", "exec.yml", "-R", REPO)
-    else:
-        print(f"⏭️ {time.strftime('%H:%M:%S', time.gmtime())} exec 运行中, 跳过")
-
-
-def renew():
-    """自调度下一周期"""
-    queued = gh("run", "list", "-w", f"{SELF}.yml", "-s", "queued",
-                "--json", "databaseId", "-q", "length", "-R", REPO)
-    if queued == "0" or not queued:
-        gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
-        print("🔄 已触发下一周期")
-
-
-def guard():
-    """检查兄弟链"""
-    for t in ("tick-a", "tick-b", "tick-c"):
-        if t == SELF:
-            continue
-        s = run_status(f"{t}.yml")
-        if s not in ("in_progress", "queued"):
-            print(f"⚠️ {t} 已停止, 触发 guard")
-            gh("workflow", "run", "guard.yml", "-R", REPO)
-            break
+def alive(wf):
+    return gh("run", "list", "-w", wf, "--json", "status",
+              "-q", ".[0].status", "-R", REPO, "--limit", "1") in ("in_progress", "queued")
 
 
 def main():
-    print(f"🚀 {SELF} 启动 (offset={OFFSET}, run={RUN_ID})")
+    print(f"🚀 {SELF} (off={OFF} run={RUN})")
 
-    for i in range(1, ROUNDS + 1):
-        # 每轮检测: 有新实例就自我销毁
-        check_newer()
+    for _ in range(300):  # 300 轮 ≈ 5h
+        # 新实例检测 → 自毁
+        for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
+                       "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO).splitlines():
+            if rid and int(rid) > RUN:
+                sys.exit(print(f"🛑 新实例 #{rid}, 退出"))
 
-        # 对齐到整分钟
-        now = time.time()
-        wait = 60 - (now % 60)
-        if 0 < wait <= 60:
-            time.sleep(wait)
+        # 对齐整分钟
+        time.sleep(60 - time.time() % 60)
 
-        # 只在属于自己的分钟触发
-        minute = time.gmtime().tm_min
-        if minute % 3 == OFFSET:
-            trigger_exec()
+        # 轮到我 + exec 空闲 → 触发
+        if time.gmtime().tm_min % 3 == OFF and not alive("exec.yml"):
+            print(f"🎯 {time.strftime('%H:%M:%S', time.gmtime())} exec")
+            gh("workflow", "run", "exec.yml", "-R", REPO)
 
-    renew()
-    guard()
-    print(f"✅ {SELF} 本轮结束")
+    # 续期 (无排队才触发)
+    q = gh("run", "list", "-w", f"{SELF}.yml", "-s", "queued",
+           "--json", "databaseId", "-q", "length", "-R", REPO)
+    if not q or q == "0":
+        gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
+
+    # 守护兄弟
+    for t in ("tick-a", "tick-b", "tick-c"):
+        if t != SELF and not alive(f"{t}.yml"):
+            gh("workflow", "run", "guard.yml", "-R", REPO)
+            break
 
 
 if __name__ == "__main__":
