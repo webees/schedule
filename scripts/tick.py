@@ -26,9 +26,9 @@ def clean():
 def alive(w): return gh("run", "list", "-w", f"{w}.yml", "--json", "status",
                         "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
-def run(*a): gh("workflow", "run", f"{a[0]}.yml", "-R", REPO)
+def run(wf): gh("workflow", "run", f"{wf}.yml", "-R", REPO)
 
-clean()  # 启动时清理旧锁
+clean()
 print(f"🚀 {SELF} run={RUN} n={N}")
 for i in range(1, N + 1):
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
@@ -39,8 +39,8 @@ for i in range(1, N + 1):
     won, reason = lock(m)
     print(f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} {'获锁→exec' if won else f'锁已占({reason})'}")
     if won: run("exec")
-    if not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
+    if i % 5 == 0 and not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
     if i % 30 == 0: clean()
 
-run(SELF)
+if not alive(SELF): run(SELF)
 clean()
