@@ -1,15 +1,13 @@
 """tick.py — 定时器核心逻辑
 
 环境变量:
-  SELF     — tick 名称 (tick-a / tick-b / tick-c)
-  REPO     — 仓库 (owner/repo)
-  RUN_ID   — 当前 run ID (用于排除自己)
+  SELF — tick 名称 (tick-a / tick-b / tick-c)
+  REPO — 仓库 (owner/repo)
 """
 import json, os, subprocess, time
 
 SELF   = os.environ["SELF"]
 REPO   = os.environ["REPO"]
-RUN_ID = os.environ["RUN_ID"]
 OFFSET = {"a": 0, "b": 1, "c": 2}[SELF[-1]]
 ROUNDS = 300  # 300 轮 × ~60s ≈ 5h
 
@@ -31,14 +29,6 @@ def run_status(workflow):
     return gh("run", "list", "-w", workflow, "--json", "status", "-q", ".[0].status", "-R", REPO, "--limit", "1")
 
 
-def cancel_old():
-    """取消同名旧实例"""
-    print(f"🧹 清理 {SELF} 旧实例...")
-    ids = gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress", "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)
-    for rid in ids.splitlines():
-        if rid and rid != RUN_ID:
-            gh("run", "cancel", rid, "-R", REPO)
-            print(f"  取消: #{rid}")
 
 
 def trigger_exec():
@@ -72,7 +62,6 @@ def guard():
 
 
 def main():
-    cancel_old()
     print(f"🚀 {SELF} 启动 (offset={OFFSET})")
 
     for i in range(1, ROUNDS + 1):
