@@ -49,12 +49,25 @@ tick-c (for循环, 驻留5h) ──┘                              │
 | 🅰️ | `cancel-in-progress: true` | 平台级：新 run 取消旧 run |
 | 🅱️ | `check_newer()` 每轮检测 | 代码级：检测到更新 run_id 则 `sys.exit` |
 
-### 互守护 — 兄弟链死亡自动唤醒
+### 🛡️ 互守护 — guard.yml 自动唤醒死掉的链
+
+每条 tick 在 5 小时循环结束后，会检查兄弟链是否存活：
 
 ```
-tick-a 发现 tick-b 死了 ──→ 触发 guard.yml (单例)
-guard 检查所有 tick ──→ 交错唤起死掉的链
+tick-a 循环结束 → 检查 tick-b, tick-c 状态
+  ├── 全部存活 → 无操作
+  └── 发现 tick-b 死了 → 触发 guard.yml
+                              │
+                              ▼
+                    guard.yml (concurrency: cancel-in-progress)
+                    ├── 检查 tick-a → ✅ 存活, 跳过
+                    ├── 检查 tick-b → 🚨 已停止, 唤醒, sleep 60s
+                    └── 检查 tick-c → ✅ 存活, 跳过
 ```
+
+**guard.yml 特性：**
+- `cancel-in-progress: true` — 多条 tick 同时触发 guard 时只执行一次
+- 交错唤醒 — 每唤起一条链后 sleep 60s，避免同时启动
 
 ### 容错 — 任意一条活着就不遗漏
 

@@ -49,6 +49,26 @@ tick-c (for迴圈, 駐留5h) ──┘                              │
 | 🅰️ | `cancel-in-progress: true` | 平台級：新 run 取消舊 run |
 | 🅱️ | `check_newer()` 每輪偵測 | 程式碼級：偵測到更新 run_id 則 `sys.exit` |
 
+### 🛡️ 互守護 — guard.yml 自動喚醒死掉的鏈
+
+每條 tick 在 5 小時迴圈結束後，會檢查兄弟鏈是否存活：
+
+```
+tick-a 迴圈結束 → 檢查 tick-b, tick-c 狀態
+  ├── 全部存活 → 無操作
+  └── 發現 tick-b 死了 → 觸發 guard.yml
+                              │
+                              ▼
+                    guard.yml (concurrency: cancel-in-progress)
+                    ├── 檢查 tick-a → ✅ 存活, 跳過
+                    ├── 檢查 tick-b → 🚨 已停止, 喚醒, sleep 60s
+                    └── 檢查 tick-c → ✅ 存活, 跳過
+```
+
+**guard.yml 特性：**
+- `cancel-in-progress: true` — 多條 tick 同時觸發 guard 時只執行一次
+- 交錯喚醒 — 每喚起一條鏈後 sleep 60s，避免同時啟動
+
 ### 容錯
 
 ```

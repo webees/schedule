@@ -49,6 +49,26 @@ tick-c (for loop, 5h resident) ──┘                                       �
 | 🅰️ | `cancel-in-progress: true` | Platform: new run cancels old run |
 | 🅱️ | `check_newer()` per loop | Code: detect newer run_id → `sys.exit` |
 
+### 🛡️ Mutual Guardianship — guard.yml revives dead chains
+
+After completing its 5-hour loop, each tick checks if sibling chains are alive:
+
+```
+tick-a loop ends → check tick-b, tick-c status
+  ├── all alive → no action
+  └── tick-b dead → trigger guard.yml
+                         │
+                         ▼
+               guard.yml (concurrency: cancel-in-progress)
+               ├── check tick-a → ✅ alive, skip
+               ├── check tick-b → 🚨 dead, revive, sleep 60s
+               └── check tick-c → ✅ alive, skip
+```
+
+**guard.yml features:**
+- `cancel-in-progress: true` — multiple ticks triggering guard at once → only one runs
+- Staggered revival — sleep 60s between each revive to avoid simultaneous startup
+
 ### Fault Tolerance
 
 ```
