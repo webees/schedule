@@ -4,7 +4,6 @@ import os, subprocess, sys, time
 SELF = os.environ["SELF"]
 REPO = os.environ["REPO"]
 RUN  = int(os.environ["RUN_ID"])
-OFF  = ord(SELF[-1]) - ord("a")  # a→0 b→1 c→2
 
 
 def gh(*a):
@@ -17,7 +16,7 @@ def alive(wf):
 
 
 def main():
-    print(f"🚀 {SELF} (off={OFF} run={RUN})")
+    print(f"🚀 {SELF} (run={RUN})")
 
     for _ in range(300):  # 300 轮 ≈ 5h
         # 新实例检测 → 自毁
@@ -29,8 +28,8 @@ def main():
         # 对齐整分钟
         time.sleep(60 - time.time() % 60)
 
-        # 轮到我 + exec 空闲 → 触发
-        if time.gmtime().tm_min % 3 == OFF and not alive("exec.yml"):
+        # exec 空闲 → 触发 (三条 tick 都尝试, alive+concurrency 保证单例)
+        if not alive("exec.yml"):
             print(f"🎯 {time.strftime('%H:%M:%S', time.gmtime())} exec")
             gh("workflow", "run", "exec.yml", "-R", REPO)
 
