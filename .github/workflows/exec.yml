@@ -5,7 +5,7 @@ on:
 
 concurrency:
   group: exec
-  cancel-in-progress: true     # 3 个同时触发 → 只有最后 1 个跑完
+  cancel-in-progress: false    # 原子锁保证只触发一次, 无需取消
 
 permissions:
   actions: write
@@ -14,8 +14,6 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: ⏳ 去重窗口
-        run: sleep 10    # 等待 cancel-in-progress 取消重复触发
 
       - name: 🚀 业务执行
         run: |
