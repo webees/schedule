@@ -35,8 +35,10 @@ def alive(wf):
               "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
 
-print(f"🚀 {SELF} run={RUN}")
-for i in range(1, 301):
+ROUNDS = 300 + (ord(SELF[-1]) - ord("a")) * 30  # a=300(5h) b=330(5.5h) 错开续期
+
+print(f"🚀 {SELF} run={RUN} rounds={ROUNDS}")
+for i in range(1, ROUNDS + 1):
     # 自毁检测
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                   "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
