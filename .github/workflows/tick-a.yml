@@ -13,25 +13,58 @@ permissions:
 jobs:
   tick:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     steps:
-      - name: ⏱️ heartbeat
-        run: echo "${{ github.workflow }} | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
+      - name: 🔄 定时循环
+        run: |
+          SELF="${{ github.workflow }}"
+          LETTER=${SELF: -1}
+          case $LETTER in
+            a) OFFSET=0 ;;
+            b) OFFSET=1 ;;
+            c) OFFSET=2 ;;
+          esac
+          echo "🚀 $SELF 启动 (offset=$OFFSET)"
 
-      - name: 💤 sleep
-        run: sleep 160
+          for i in $(seq 1 300); do
+            # 对齐到整分钟
+            SEC=$(date -u '+%-S')
+            WAIT=$((60 - SEC))
+            [ "$WAIT" -gt 0 ] && [ "$WAIT" -le 60 ] && sleep $WAIT
 
-      - name: 🔄 自调度
+            # 只在属于自己的分钟触发
+            MIN=$(date -u '+%-M')
+            if [ $((MIN % 3)) -eq $OFFSET ]; then
+              # exec 未运行时才触发
+              S=$(gh run list -w exec.yml --json status -q '.[0].status' -R $REPO --limit 1 2>/dev/null)
+              if [ "$S" != "in_progress" ] && [ "$S" != "queued" ]; then
+                echo "🎯 [$i] $(date -u '+%H:%M:%S') 触发 exec"
+                gh workflow run exec.yml -R $REPO 2>/dev/null || true
+              else
+                echo "⏭️ [$i] $(date -u '+%H:%M:%S') exec 运行中, 跳过"
+              fi
+            fi
+          done
+
+      - name: 🔄 续期
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           SELF="${{ github.workflow }}.yml"
           QUEUED=$(gh run list -w $SELF -s queued --json databaseId -q 'length' -R $REPO)
           [ "$QUEUED" -eq 0 ] && gh workflow run $SELF -R $REPO
+          echo "✅ 已触发下一周期"
 
       - name: 👀 守护
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           SELF="${{ github.workflow }}"
           for t in tick-a tick-b tick-c; do

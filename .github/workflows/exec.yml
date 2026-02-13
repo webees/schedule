@@ -1,0 +1,21 @@
+name: exec
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: exec
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚀 业务执行
+        run: |
+          echo "exec | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
+          # TODO: 触发外部仓库 (需要 PAT)
+          # gh api /repos/webees/k3s/dispatches -f event_type=scheduled-check
