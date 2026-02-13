@@ -32,9 +32,8 @@ for i in range(1, N + 1):
     w = lock(m)
     print(f"{'🎯' if w else '⏭️'} [{i}/{N}] {t} {'获锁→exec' if w else '锁已占'}")
     if w: run("exec")
-    if i % 10 == 0:  # 每 10 分钟
-        if not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
-        if i % 30 == 0: clean()
+    if not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
+    if i % 30 == 0: clean()
 
 run(SELF)
 clean()
