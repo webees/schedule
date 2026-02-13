@@ -15,61 +15,82 @@ Three tick chains reside in VMs via for-loops (~5h per cycle), aligning to exact
 ## Architecture
 
 ```
-tick-a (for-loop, 5h resident, owns min%3==0) ──┐
-tick-b (for-loop, 5h resident, owns min%3==1) ──┼── exactly one trigger/min ──→ exec.yml (singleton)
-tick-c (for-loop, 5h resident, owns min%3==2) ──┘                                    │
-         ▲                                                                           ▼
-    guard.yml (singleton reviver)                                           trigger external repos
+tick-a (for loop, 5h, min%3==0) ---+
+tick-b (for loop, 5h, min%3==1) ---+--> exec.yml (singleton) --> external repo
+tick-c (for loop, 5h, min%3==2) ---+
+  ^                                         |
+  +---- guard.yml (singleton reviver) <-----+
 ```
+
+## Timing
+
+```
+min   :00  :01  :02  :03  :04  :05  :06  :07  :08
+ a     *              *              *
+ b          *              *              *
+ c               *              *              *
+exec  [=]  [=]  [=]  [=]  [=]  [=]  [=]  [=]  [=]
+```
+
+> `*` = tick triggers exec, `[=]` = exec runs, exactly once per minute
 
 ## Core Mechanisms
 
-### Minute-Aligned Precision
+**Minute-aligned precision** — each loop iteration sleeps to the next whole minute
 
 ```python
-wait = 60 - (time.time() % 60)
-time.sleep(wait)
+time.sleep(60 - time.time() % 60)
 ```
 
-### Triple Deduplication
+**Triple deduplication** — ensures exec is never triggered twice
 
 ```
-1. Minute ownership: min%3 == offset → only one tick may trigger per minute
-2. Status check: verify exec is not in_progress/queued before triggering
-3. Concurrency: exec.yml group=exec → at most one instance runs
+1. min%3 == offset    only one tick may trigger per minute
+2. alive("exec.yml")  check exec status before triggering
+3. concurrency: exec  platform-level guarantee of single instance
 ```
 
-### Old Instance Cleanup
-
-```python
-# On startup, cancel other in_progress runs of the same workflow
-gh run list → find other in_progress runs → gh run cancel
-```
-
-### Mutual Guardianship
+**Self-destroy on update** — old chains exit when new code is pushed
 
 ```
-tick-a detects tick-b is dead → triggers guard.yml → guard revives tick-b
+cancel-in-progress: true   platform: new run cancels old run
+check_newer() per loop     code: detect newer run_id then sys.exit
+```
+
+**Mutual guardianship** — revive dead sibling chains
+
+```
+tick-a detects tick-b dead --> trigger guard.yml (singleton)
+tick-c detects tick-b dead --> trigger guard.yml (dropped by cancel-in-progress)
+guard runs once --> revives tick-b
 ```
 
 ## Files
 
 ```
 .github/workflows/
-  tick-a/b/c.yml      Timers (only name differs, logic shared via tick.py)
-  exec.yml             Business executor (singleton)
-  guard.yml            Guardian
+  tick-a.yml        timer A (only name differs)
+  tick-b.yml        timer B
+  tick-c.yml        timer C
+  exec.yml          executor (singleton)
+  guard.yml         guardian (singleton)
 
 scripts/
-  tick.py              Timer core logic
-  guard.py             Guardian logic
+  tick.py           timer logic (~50 lines, shared by a/b/c)
+  guard.py          guardian logic (~20 lines)
 ```
 
 ## Startup
 
 ```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60 && gh workflow run tick-c.yml
+gh workflow run tick-a.yml
+sleep 60
+gh workflow run tick-b.yml
+sleep 60
+gh workflow run tick-c.yml
 ```
+
+Or just `git push` to main — all three chains start automatically.
 
 ## Full Recovery
 

@@ -15,82 +15,86 @@ GitHub Actions 的 cron 调度存在严重节流：设定每 5 分钟执行，�
 ## 架构
 
 ```
-tick-a (for循环, 驻留5h, 负责 min%3==0) ──┐
-tick-b (for循环, 驻留5h, 负责 min%3==1) ──┼── 每分钟恰好一个触发 ──→ exec.yml (单例)
-tick-c (for循环, 驻留5h, 负责 min%3==2) ──┘                              │
-         ▲                                                               ▼
-    guard.yml (单例唤醒者)                                        触发外部仓库
+tick-a (for loop, 5h, min%3==0) ---+
+tick-b (for loop, 5h, min%3==1) ---+--> exec.yml (singleton) --> external repo
+tick-c (for loop, 5h, min%3==2) ---+
+  ^                                         |
+  +---- guard.yml (singleton reviver) <-----+
 ```
 
 ## 时序
 
 ```
-分钟:  :00   :01   :02   :03   :04   :05   :06
-tick-a: 🎯                 🎯                 🎯      ← min%3==0
-tick-b:       🎯                 🎯                    ← min%3==1
-tick-c:             🎯                 🎯              ← min%3==2
-exec:   █    █    █    █    █    █    █               ← 每分钟一次, 单例
+min   :00  :01  :02  :03  :04  :05  :06  :07  :08
+ a     *              *              *
+ b          *              *              *
+ c               *              *              *
+exec  [=]  [=]  [=]  [=]  [=]  [=]  [=]  [=]  [=]
 ```
+
+> `*` = tick 触发 exec, `[=]` = exec 执行, 每分钟恰好一次
 
 ## 核心机制
 
-### 精准对齐
+**精准对齐** — 每轮循环 sleep 到整分钟边界
 
 ```python
-# 每次循环对齐到整分钟
-wait = 60 - (time.time() % 60)
-time.sleep(wait)
+time.sleep(60 - time.time() % 60)
 ```
 
-### 三重去重
+**三重去重** — 确保 exec 不被重复触发
 
 ```
-1. 分钟分配: min%3 == offset → 每分钟只有一条 tick 有权触发
-2. 状态检查: 触发前检查 exec 是否 in_progress/queued → 跳过
-3. concurrency: exec.yml group=exec → 万一双触发也只跑一个
+1. min%3 == offset    每分钟只有一条 tick 有权触发
+2. alive("exec.yml")  触发前检查 exec 是否已在运行
+3. concurrency: exec  万一双触发, 平台级保证只跑一个
 ```
 
-### 新实例清理
-
-```python
-# 启动时取消同名旧实例, 确保每个 tick 只有一个运行
-gh run list → 找到其他 in_progress 的同名 run → gh run cancel
-```
-
-### 互守护
+**新实例自毁** — 代码更新后旧链自动退出
 
 ```
-tick-a 发现 tick-b 死了 → 触发 guard.yml
-tick-c 发现 tick-b 死了 → 也触发 guard.yml → 被 cancel-in-progress 丢弃
-guard 单例运行 → 检查所有 tick → 唤起死掉的链
+cancel-in-progress: true   平台级: 新 run 取消旧 run
+check_newer() per loop     代码级: 检测到更新 run_id 则 sys.exit
+```
+
+**互守护** — 兄弟链死亡时触发 guard 唤醒
+
+```
+tick-a detects tick-b dead --> trigger guard.yml (singleton)
+tick-c detects tick-b dead --> trigger guard.yml (dropped by cancel-in-progress)
+guard runs once --> revives tick-b
 ```
 
 ## 文件结构
 
 ```
 .github/workflows/
-  tick-a.yml          定时器 A (仅 name 不同)
-  tick-b.yml          定时器 B
-  tick-c.yml          定时器 C
-  exec.yml            业务执行器 (单例)
-  guard.yml           守护者
+  tick-a.yml        timer A (only name differs)
+  tick-b.yml        timer B
+  tick-c.yml        timer C
+  exec.yml          executor (singleton)
+  guard.yml         guardian (singleton)
 
 scripts/
-  tick.py             定时器核心逻辑 (三个 tick 共用)
-  guard.py            守护者逻辑
+  tick.py           timer logic (~50 lines, shared by a/b/c)
+  guard.py          guardian logic (~20 lines)
 ```
-
-> tick-a/b/c 三个 workflow 完全一致，仅 `name:` 不同，通过 `github.workflow` 动态推导身份。
 
 ## 启动
 
 ```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml && sleep 60 && gh workflow run tick-c.yml
+gh workflow run tick-a.yml
+sleep 60
+gh workflow run tick-b.yml
+sleep 60
+gh workflow run tick-c.yml
 ```
+
+或直接 `git push` 到 main 分支 — 三条链自动启动。
 
 ## 全灭恢复
 
-手动触发任意一条 tick → 守护机制自动唤起其他链。
+手动触发任意一条 tick，守护机制自动唤起其他链。
 
 ## 授权
 
