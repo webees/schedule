@@ -5,7 +5,7 @@ on:
 
 concurrency:
   group: exec
-  cancel-in-progress: true
+  cancel-in-progress: false    # 1 running + 1 pending (max), 旧 pending 被新的替换
 
 permissions:
   actions: write
