@@ -21,7 +21,7 @@ jobs:
         run: echo "${{ github.workflow }} | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
 
       - name: 💤 sleep
-        run: sleep 180
+        run: sleep 160
 
       - name: 🔄 自调度
         if: always()
