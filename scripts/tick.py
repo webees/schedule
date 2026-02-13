@@ -17,6 +17,11 @@ def clean():
         if ref.rsplit("-", 1)[-1] < time.strftime('%Y%m%d%H%M', time.gmtime()):
             gh("api", "-X", "DELETE", f"{P}/git/{ref}")
 
+PEER = "tick-b" if SELF == "tick-a" else "tick-a"
+
+def alive(w): return gh("run", "list", "-w", f"{w}.yml", "--json", "status",
+                        "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
+
 print(f"🚀 {SELF} run={RUN} n={N}")
 for i in range(1, N + 1):
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
@@ -27,10 +32,9 @@ for i in range(1, N + 1):
     w = lock(m)
     print(f"{'🎯' if w else '⏭️'} [{i}/{N}] {t} {'获锁→exec' if w else '锁已占'}")
     if w: run("exec")
-    if i % 30 == 0: clean()
+    if i % 10 == 0:  # 每 10 分钟
+        if not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
+        if i % 30 == 0: clean()
 
 run(SELF)
-peer = "tick-b" if SELF == "tick-a" else "tick-a"
-if gh("run", "list", "-w", f"{peer}.yml", "--json", "status", "-q", ".[0].status",
-      "-R", REPO, "--limit", "1")[0] not in ("in_progress", "queued"): run("guard")
 clean()
