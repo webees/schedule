@@ -2,10 +2,14 @@ name: exec
 
 on:
   workflow_dispatch:
+    inputs:
+      interval:
+        description: "触发间隔 (1m, 5m, ...)"
+        required: true
 
 concurrency:
-  group: exec
-  cancel-in-progress: false    # 原子锁保证只触发一次, 无需取消
+  group: exec-${{ inputs.interval }}
+  cancel-in-progress: false
 
 permissions:
   actions: write
@@ -14,9 +18,16 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-
       - name: 🚀 业务执行
         run: |
-          echo "exec | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
-          # TODO: 触发外部仓库 (需要 PAT)
-          # gh api /repos/webees/k3s/dispatches -f event_type=scheduled-check
+          echo "exec | ${{ inputs.interval }} | $(date -u '+%Y-%m-%d %H:%M:%S') UTC | run#${{ github.run_number }}"
+
+          if [ "${{ inputs.interval }}" = "1m" ]; then
+            echo "--- 1分钟业务 ---"
+            # TODO: 每分钟任务
+          fi
+
+          if [ "${{ inputs.interval }}" = "5m" ]; then
+            echo "--- 5分钟业务 ---"
+            # TODO: 每5分钟任务
+          fi

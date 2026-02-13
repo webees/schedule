@@ -11,10 +11,11 @@ def gh(*a):
 
 def api(*a): return gh("api", *a)[0]
 
-def lock(m):
+def lock(name, m):
+    """原子锁: refs/tags/lock/{name}-{minute}"""
     sha = api(f"{P}/git/ref/heads/main", "-q", ".object.sha")
     if not sha: return False, "no sha"
-    out, err, rc = gh("api", f"{P}/git/refs", "-f", f"ref=refs/tags/lock/exec-{m}", "-f", f"sha={sha}")
+    out, err, rc = gh("api", f"{P}/git/refs", "-f", f"ref=refs/tags/lock/{name}-{m}", "-f", f"sha={sha}")
     return rc == 0, err if rc else "ok"
 
 def clean():
@@ -26,7 +27,16 @@ def clean():
 def alive(w): return gh("run", "list", "-w", f"{w}.yml", "--json", "status",
                         "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
+def dispatch(interval):
+    gh("workflow", "run", "exec.yml", "-f", f"interval={interval}", "-R", REPO)
+
 def run(wf): gh("workflow", "run", f"{wf}.yml", "-R", REPO)
+
+# === 调度表 (name, interval, 条件) ===
+JOBS = [
+    ("1m", "1m", lambda m: True),               # 每分钟
+    ("5m", "5m", lambda m: int(m[-2:]) % 5 == 0), # 每5分钟
+]
 
 clean()
 print(f"🚀 {SELF} run={RUN} n={N}")
@@ -34,11 +44,16 @@ for i in range(1, N + 1):
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                   "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
         if rid and int(rid) > RUN: sys.exit(print(f"🛑 #{rid} 更新, 退出"))
-    time.sleep(60 - time.time() % 60 or 0.1)  # %60==0 时避免 sleep(0)
+    time.sleep(60 - time.time() % 60 or 0.1)
     t, m = time.strftime('%H:%M:%S', time.gmtime()), time.strftime('%Y%m%d%H%M', time.gmtime())
-    won, reason = lock(m)
-    print(f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} {'获锁→exec' if won else f'锁已占({reason})'}")
-    if won: run("exec")
+
+    for name, interval, cond in JOBS:
+        if not cond(m): continue
+        won, reason = lock(name, m)
+        tag = f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} {interval}"
+        print(f"{tag} {'获锁→exec' if won else f'锁已占({reason})'}")
+        if won: dispatch(interval)
+
     if i % 5 == 0 and not alive(PEER): print(f"🛡️ {PEER} 已死, 唤醒"); run("guard")
     if i % 30 == 0: clean()
 
