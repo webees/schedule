@@ -18,10 +18,10 @@
 ## Architecture
 
 ```
-tick-a (5h,  600 rounds) ──┐
-                            ├── Git Ref atomic lock ──→ external repos
+tick-a (5h,   600 rounds) ──┐
+                              ├── Git Ref atomic lock ──→ dispatch
 tick-b (5.5h, 660 rounds) ──┘
-     ↕ mutual guard (direct restart)
+       ↕ mutual guard (every 30s)
 ```
 
 ## Atomic Lock
