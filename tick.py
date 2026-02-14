@@ -44,9 +44,11 @@ def alive(wf):
               "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
 def trigger(repo, wf):
-    """触发目标 workflow, 返回是否成功"""
-    _, _, rc = gh("workflow", "run", wf, "-R", repo)
-    return rc == 0
+    """触发目标 workflow (使用 PAT 跨仓库), 返回是否成功"""
+    env = {**os.environ, "GH_TOKEN": os.environ.get("PAT", "")}
+    r = subprocess.run(["gh", "workflow", "run", wf, "-R", repo],
+                       capture_output=True, text=True, env=env)
+    return r.returncode == 0
 
 # ══════════════════════════════════════════════════
 #  原子锁 — 基于 Git Ref 的分布式互斥
