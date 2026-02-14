@@ -8,10 +8,10 @@
 
 | | |
 |---|---|
-| ⏱️ **Minute precision** | `time.sleep(60 - time.time() % 60)` aligns to exact minute boundaries |
-| 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 exec |
+| ⏱️ **Minute precision** | `time.sleep(30 - time.time() % 30)` aligns to 30-second boundaries |
+| 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
 | 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
-| 📦 **Minimal code** | tick.py 46 lines + guard.py 8 lines, zero external dependencies |
+| 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 
 ---
 
@@ -19,10 +19,9 @@
 
 ```
 tick-a (for loop, 5h resident) ──┐
-                                 ├── Git Ref atomic lock ──→ exec.yml ──→ external repos
+                                 ├── Git Ref atomic lock ──→ external repos
 tick-b (for loop, 5.5h resident) ┘
-         ↕ mutual guard
-    guard.yml
+         ↕ mutual guard (direct restart)
 ```
 
 ## Atomic Lock
@@ -30,7 +29,7 @@ tick-b (for loop, 5.5h resident) ┘
 Both ticks attempt to create the same Git Ref each minute. GitHub guarantees only one succeeds:
 
 ```
-tick-a: POST /git/refs → 201 Created  ✅ lock acquired → trigger exec
+tick-a: POST /git/refs → 201 Created  ✅ lock acquired → trigger target
 tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 ```
 
@@ -38,15 +37,15 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 |----------|-------------|
 | Atomic | Same ref cannot be created twice |
 | Race-free | No status polling, no API delay window |
-| Self-cleaning | Old lock tags auto-deleted every 30 rounds |
+| Self-cleaning | Old lock tags auto-deleted every round (30s) |
 
 ## Self-Healing
 
 | Mechanism | Description |
 |-----------|-------------|
-| Staggered renewal | tick-a 300 rounds / tick-b 330 rounds, never gap simultaneously |
+| Staggered renewal | tick-a 600 rounds / tick-b 660 rounds, never gap simultaneously |
 | Auto-renewal | `workflow_dispatch` next cycle on completion |
-| Mutual guard | Check sibling every 5 minutes, trigger guard if dead |
+| Mutual guard | Check sibling every round (30s), restart directly if dead |
 | Self-destroy | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -62,21 +61,45 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 |----------|--------|
 | Both alive | 2 race → exec 1 time ✅ |
 | One alive | 1 direct lock → exec 1 time ✅ |
-| Both dead | Manual trigger any tick 🔄 |
+| Both dead | `git push main` or manual trigger any tick 🔄 |
 
 ## Files
 
 ```
 .github/workflows/
-├── tick-a.yml    Timer A (300 rounds ≈ 5h)
-├── tick-b.yml    Timer B (330 rounds ≈ 5.5h)
-├── exec.yml      Business executor
-└── guard.yml     Guardian
+├── tick-a.yml    Timer A (600 rounds ≈ 5h)
+└── tick-b.yml    Timer B (660 rounds ≈ 5.5h)
 
-scripts/
-├── tick.py       Timer + atomic lock (46 lines)
-└── guard.py      Guardian logic (8 lines)
+tick.py               Timer + atomic lock + dispatcher
 ```
+
+## Extension
+
+Single config: Secret `DISPATCH`, one entry per line, two formats supported:
+
+**Crontab 5-field** (minimum 1 minute):
+
+```
+min hour day month weekday  repo  workflow
+```
+
+**Second-level syntax** (any interval):
+
+```
+@Ns  repo  workflow
+```
+
+Field syntax same as crontab: `*` any / `*/5` every 5 / `0,30` specific / `1-5` range
+
+Example:
+
+```
+*/5 * * * *  owner/repo  check.yml
+0   8 * * *  owner/repo  daily.yml
+@30s         owner/repo  poll.yml
+```
+
+> **Adding tasks only requires changing the Secret, no code changes.**
 
 ## Startup
 

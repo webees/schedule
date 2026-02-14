@@ -8,10 +8,10 @@
 
 | | |
 |---|---|
-| ⏱️ **分钟级精度** | `time.sleep(60 - time.time() % 60)` 对齐整分钟边界 |
-| 🔒 **原子级去重** | Git Ref 创建天然原子，双链竞态只有 1 个 exec |
+| ⏱️ **分钟级精度** | `time.sleep(30 - time.time() % 30)` 对齐 30 秒边界 |
+| 🔒 **原子级去重** | Git Ref 创建天然原子，双链竞态只有 1 次执行 |
 | 🛡️ **7×24 自愈** | 自续期 + 互守护 + 错开空窗，无人值守 |
-| 📦 **极简代码** | tick.py 46 行 + guard.py 8 行，零外部依赖 |
+| 📦 **极简代码** | 单文件 tick.py，零外部依赖 |
 
 ---
 
@@ -19,10 +19,9 @@
 
 ```
 tick-a (for 循环, 驻留 5h) ──┐
-                             ├── Git Ref 原子锁 ──→ exec.yml ──→ 外部仓库
+                             ├── Git Ref 原子锁 ──→ 外部仓库
 tick-b (for 循环, 驻留 5.5h) ┘
-         ↕ 互守护
-    guard.yml
+         ↕ 互守护 (直接重启对方)
 ```
 
 ## 原子锁
@@ -30,7 +29,7 @@ tick-b (for 循环, 驻留 5.5h) ┘
 每分钟两条 tick 同时尝试创建同名 Git Ref，GitHub 服务端保证只有一个成功：
 
 ```
-tick-a: POST /git/refs → 201 Created  ✅ 获锁 → 触发 exec
+tick-a: POST /git/refs → 201 Created  ✅ 获锁 → 触发目标
 tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 ```
 
@@ -38,15 +37,15 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 |------|------|
 | 原子性 | 同名 ref 不可能被创建两次 |
 | 无竞态 | 不依赖状态查询，无 API 延迟窗口 |
-| 自清理 | 旧 lock tag 每 30 轮自动删除 |
+| 自清理 | 旧 lock tag 每轮 (30s) 自动删除 |
 
 ## 自愈
 
 | 机制 | 说明 |
 |------|------|
-| 错开续期 | tick-a 300 轮 / tick-b 330 轮，永不同时空窗 |
+| 错开续期 | tick-a 600 轮 / tick-b 660 轮，永不同时空窗 |
 | 自续期 | 轮次结束自动 `workflow_dispatch` 下一轮 |
-| 互守护 | 每 5 分钟检查兄弟存活，死亡则触发 guard 唤醒 |
+| 互守护 | 每轮 (30s) 检查兄弟存活，死亡则直接重启 |
 | 自毁 | `cancel-in-progress` + run_id 检测，新代码推送秒切换 |
 
 | 小时 | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -60,23 +59,47 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 
 | 场景 | 结果 |
 |------|------|
-| 双链存活 | 2 竞争锁 → exec 1 次 ✅ |
-| 单链存活 | 1 直接获锁 → exec 1 次 ✅ |
-| 全灭 | 手动触发任意 tick 🔄 |
+| 双链存活 | 2 竞争锁 → 执行 1 次 ✅ |
+| 单链存活 | 1 直接获锁 → 执行 1 次 ✅ |
+| 全灭 | `git push main` 或手动触发任意 tick 🔄 |
 
 ## 文件
 
 ```
 .github/workflows/
-├── tick-a.yml    定时器 A (300 轮 ≈ 5h)
-├── tick-b.yml    定时器 B (330 轮 ≈ 5.5h)
-├── exec.yml      业务执行器
-└── guard.yml     守护者
+├── tick-a.yml    定时器 A (600 轮 ≈ 5h)
+└── tick-b.yml    定时器 B (660 轮 ≈ 5.5h)
 
-scripts/
-├── tick.py       定时器 + 原子锁 (46 行)
-└── guard.py      守护逻辑 (8 行)
+tick.py               定时器 + 原子锁 + 调度器
 ```
+
+## 扩展
+
+唯一配置：Secret `DISPATCH`，每行一条，支持两种格式：
+
+**crontab 5 字段** (最小粒度 1 分钟):
+
+```
+分 时 日 月 周  仓库  工作流
+```
+
+**秒级语法** (任意间隔):
+
+```
+@Ns  仓库  工作流
+```
+
+字段语法同 crontab：`*` 任意 / `*/5` 每 5 / `0,30` 指定 / `1-5` 范围
+
+示例：
+
+```
+*/5 * * * *  owner/repo  check.yml
+0   8 * * *  owner/repo  daily.yml
+@30s         owner/repo  poll.yml
+```
+
+> **添加任务只改 Secret，不改任何代码。**
 
 ## 启动
 

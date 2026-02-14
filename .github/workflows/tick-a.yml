@@ -19,10 +19,11 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/tick.py
+      - run: python3 tick.py
         env:
           PYTHONUNBUFFERED: "1"
           GH_TOKEN: ${{ github.token }}
           SELF: ${{ github.workflow }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
+          DISPATCH: ${{ secrets.DISPATCH }}
