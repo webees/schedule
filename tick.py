@@ -22,8 +22,8 @@ REPO = os.environ["REPO"]                          # 当前仓库: owner/repo
 RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版本检测
 PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
-IV   = 30                                          # 每轮间隔 (秒)
-N    = 600 + (ord(SELF[-1]) - ord("a")) * 60       # 总轮次: a=600(5h) b=660(5.5h)
+INTERVAL = 30                                      # 每轮间隔 (秒)
+ROUNDS = 600 + (ord(SELF[-1]) - ord("a")) * 60    # 总轮次: a=600(5h) b=660(5.5h)
 
 # ══════════════════════════════════════════════════
 #  基础工具
@@ -43,11 +43,12 @@ def alive(wf):
     return gh("run", "list", "-w", f"{wf}.yml", "--json", "status",
               "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
+PAT_ENV = {**os.environ, "GH_TOKEN": os.environ.get("PAT", "")}
+
 def trigger(repo, wf):
     """触发目标 workflow (使用 PAT 跨仓库), 返回是否成功"""
-    env = {**os.environ, "GH_TOKEN": os.environ.get("PAT", "")}
-    r = subprocess.run(["gh", "workflow", "run", wf, "-R", repo],
-                       capture_output=True, text=True, env=env)
+    r = sp.run(["gh", "workflow", "run", wf, "-R", repo],
+               capture_output=True, text=True, env=PAT_ENV)
     return r.returncode == 0
 
 # ══════════════════════════════════════════════════
@@ -77,7 +78,7 @@ def lock(name, slot):
                     "-f", f"sha={SHA}")
     return rc == 0, err if rc else "ok"
 
-def is_expired(lock_tag, now_epoch, now_min):
+def is_expired(lock_tag, now_epoch, now_minute):
     """
     判断锁标签是否过期
     lock_tag: "{name}-{slot}" 格式
@@ -85,13 +86,13 @@ def is_expired(lock_tag, now_epoch, now_min):
     """
     tag = lock_tag.rsplit("-", 1)[-1]
     if len(tag) == 12 and tag.isdigit():  # cron: 202602140805
-        return tag < now_min
+        return tag < now_minute
     elif tag.isdigit():                   # sec: epoch//N
         # 从锁名提取间隔 N (s{N}x{J}-slot 格式中的 N)
         ref_name = lock_tag.rsplit("-", 1)[0]  # e.g. "s30x0"
         try:
-            n = int(ref_name[1:].split("x")[0])  # 30
-            return int(tag) * n < now_epoch - 300
+            interval_sec = int(ref_name[1:].split("x")[0])  # 30
+            return int(tag) * interval_sec < now_epoch - 300
         except (ValueError, IndexError):
             return True  # 无法解析则视为过期
     return False
@@ -103,13 +104,13 @@ def sanitize_key(key):
 def clean_locks():
     """删除所有过期的 lock ref"""
     now_epoch = int(time.time())
-    now_min   = time.strftime('%Y%m%d%H%M', time.gmtime())
+    now_minute = time.strftime('%Y%m%d%H%M', time.gmtime())
     raw = api_get(f"{API}/git/refs/tags/lock", "-q", ".[].ref")
     if not raw or raw.startswith("{"):
         return  # 无锁或 API 返回错误 JSON (404)
     for ref in raw.splitlines():
         lock_tag = ref.rsplit("/", 1)[-1]  # {name}-{slot}
-        if is_expired(lock_tag, now_epoch, now_min):
+        if is_expired(lock_tag, now_epoch, now_minute):
             gh("api", "-X", "DELETE", f"{API}/git/{ref}")
 
 def clean_runs():
@@ -118,8 +119,8 @@ def clean_runs():
              "--limit", "100", "--json", "databaseId",
              "-q", f"[.[] | select(.databaseId != {RUN})].databaseId")[0].split()
     for rid in ids:
-        subprocess.Popen(["gh", "run", "delete", rid, "-R", REPO],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sp.Popen(["gh", "run", "delete", rid, "-R", REPO],
+                 stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
 # ══════════════════════════════════════════════════
 #  调度 — crontab 5 字段 + 秒级语法
@@ -197,46 +198,44 @@ CRON_ENTRIES, SEC_ENTRIES = parse_dispatch()
 #  主循环
 #
 #  每 30 秒:
-#    1. 检测是否有新版本 run → 有则退出
-#    2. 检查兄弟存活, 死则直接重启
-#    3. 清理过期锁
-#    4. sleep 对齐到 30 秒边界
-#    5a. cron 任务: 每分钟调度一次
-#    5b. 秒级任务: 按 @Ns 间隔调度
+#    1. 运维: 版本检测 + 互守护 + 清理锁/run
+#    2. sleep 对齐到 30 秒边界
+#    3a. cron 任务: 每分钟调度一次
+#    3b. 秒级任务: 按 @Ns 间隔调度
 # ══════════════════════════════════════════════════
 
 BAR = "═" * 50
 
-def schedule_round(epoch, last_m, last_slot, cron_entries, sec_entries, on_fire):
+def schedule_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_fire):
     """
-    纯调度逻辑 (不含 I/O), 返回更新后的 (last_m, last_slot)
+    纯调度逻辑 (不含 I/O), 返回更新后的 (last_minute, last_slot)
 
     on_fire(idx, show, repo, wf): 当任务需要触发时回调
     """
     now = time.gmtime(epoch)
-    m   = time.strftime('%Y%m%d%H%M', now)
+    minute_key = time.strftime('%Y%m%d%H%M', now)
 
     # cron 任务: 同一分钟内只调度一次
-    if m != last_m:
-        last_m = m
+    if minute_key != last_minute:
+        last_minute = minute_key
         for idx, (key, fields, repo, wf, lock_id) in enumerate(cron_entries):
             if match_cron(fields, now):
                 on_fire(idx, key, repo, wf)
 
     # 秒级任务: epoch // n 作为时间槽, 去重
-    for j, (n, repo, wf) in enumerate(sec_entries):
-        slot = epoch // n
+    for j, (interval_sec, repo, wf) in enumerate(sec_entries):
+        slot = epoch // interval_sec
         if last_slot.get(j) == slot:
             continue
         last_slot[j] = slot
-        on_fire(len(cron_entries) + j, f"@{n}s", repo, wf)
+        on_fire(len(cron_entries) + j, f"@{interval_sec}s", repo, wf)
 
-    return last_m, last_slot
+    return last_minute, last_slot
 
-def dispatch(i, t, idx, label, show, repo, wf):
+def dispatch(round_num, time_str, idx, label, show, repo, wf):
     """竞锁 + 触发 + 日志 (通用)"""
     won, reason = lock(*label)
-    tag = f"[{i}/{N}] {t} #{idx}"
+    tag = f"[{round_num}/{ROUNDS}] {time_str} #{idx}"
     if won:
         ok = trigger(repo, wf)
         print(f"🎯 {tag} {show} {'✅' if ok else '❌'}")
@@ -246,16 +245,16 @@ def dispatch(i, t, idx, label, show, repo, wf):
 def print_banner():
     """启动时打印运行信息和任务列表"""
     print(BAR)
-    print(f"  {SELF} | 运行={RUN} | 轮次={N} | 任务={len(CRON_ENTRIES) + len(SEC_ENTRIES)}")
+    print(f"  {SELF} | 运行={RUN} | 轮次={ROUNDS} | 任务={len(CRON_ENTRIES) + len(SEC_ENTRIES)}")
     print(BAR)
     for idx, (key, _, _, _, _) in enumerate(CRON_ENTRIES):
         print(f"  #{idx}  {key}")
-    for idx, (n, _, _) in enumerate(SEC_ENTRIES):
-        print(f"  #{len(CRON_ENTRIES) + idx}  @{n}s")
+    for idx, (interval_sec, _, _) in enumerate(SEC_ENTRIES):
+        print(f"  #{len(CRON_ENTRIES) + idx}  @{interval_sec}s")
     if CRON_ENTRIES or SEC_ENTRIES:
         print(BAR)
 
-def check_newer():
+def check_update():
     """检测是否有更新的 run_id, 有则退出让位"""
     for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                   "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
@@ -265,60 +264,52 @@ def check_newer():
         except ValueError:
             pass
 
-if __name__ == "__main__":
+def guard_peer():
+    """检查兄弟存活, 死亡则重启"""
+    if not alive(PEER):
+        print(f"🛡️ {PEER} 已死, 唤醒")
+        gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
 
-    clean_runs()
-    clean_locks()
-    print_banner()
-
-    last_m    = None
-    last_slot = {}  # 秒级任务去重: {j: last_slot_value}
-
-    for i in range(1, N + 1):
-
-        # ① 新版本检测
-        check_newer()
-
-        # ② 互守护: 每轮检查兄弟, 死亡则直接重启
-        if not alive(PEER):
-            print(f"🛡️ {PEER} 已死, 唤醒")
-            gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
-
-        # ③ 清理过期锁 + 旧 run
-        clean_locks()
-        clean_runs()
-
-        # ④ 对齐 30 秒边界 (运维操作在前, 调度在后 → 时间更精确)
-        time.sleep(IV - time.time() % IV or 0.1)
-        epoch = int(time.time())
-        now   = time.gmtime(epoch)
-        t     = time.strftime('%H:%M:%S', now)
-        m     = time.strftime('%Y%m%d%H%M', now)
-        refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
-
-        # ⑤a cron 任务: 同一分钟内只调度一次
-        if m != last_m:
-            last_m = m
-            for idx, (key, fields, repo, wf, lock_id) in enumerate(CRON_ENTRIES):
-                if match_cron(fields, now):
-                    # lock_id 拼接索引, 避免相同 cron 表达式的不同任务共享锁
-                    dispatch(i, t, idx, (f"{lock_id}{idx}", m), key, repo, wf)
-
-        # ⑤b 秒级任务: epoch // n 作为时间槽, 本地+锁双重去重
-        for j, (n, repo, wf) in enumerate(SEC_ENTRIES):
-            slot = epoch // n
-            if last_slot.get(j) == slot:
-                continue  # 同一时间槽内不重复尝试
-            last_slot[j] = slot
-            # lock 名称拼接索引, 避免相同间隔的不同任务共享锁
-            dispatch(i, t, len(CRON_ENTRIES) + j, (f"s{n}x{j}", str(slot)), f"@{n}s", repo, wf)
-
-    # ══════════════════════════════════════════════════
-    #  续期 — 轮次结束后自动启动下一轮
-    # ══════════════════════════════════════════════════
-
+def self_renew():
+    """轮次结束后自动续期"""
     if not alive(SELF):
         print(f"🔄 轮次结束, 续期")
         gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
-    clean_locks()
     print(f"✅ {SELF} 完成")
+
+if __name__ == "__main__":
+
+    print_banner()
+
+    last_minute    = None
+    last_slot = {}  # 秒级任务去重: {j: last_slot_value}
+
+    for round_num in range(1, ROUNDS + 1):
+
+        # ① 运维: 版本检测 + 互守护 + 清理
+        check_update()
+        guard_peer()
+        clean_locks()
+        clean_runs()
+
+        # ② 对齐 30 秒边界
+        time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))
+        epoch    = int(time.time())
+        now      = time.gmtime(epoch)
+        time_str = time.strftime('%H:%M:%S', now)
+        minute_key = time.strftime('%Y%m%d%H%M', now)
+        refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
+
+        # ③ 调度 (统一使用 schedule_round, 与测试共享同一份逻辑)
+        def on_fire(idx, show, repo, wf):
+            # 计算锁标签: cron 用 sanitized_key+idx, sec 用 s{N}x{J}
+            if idx < len(CRON_ENTRIES):
+                label = (f"{CRON_ENTRIES[idx][4]}{idx}", minute_key)
+            else:
+                j = idx - len(CRON_ENTRIES)
+                label = (f"s{SEC_ENTRIES[j][0]}x{j}", str(epoch // SEC_ENTRIES[j][0]))
+            dispatch(round_num, time_str, idx, label, show, repo, wf)
+        last_minute, last_slot = schedule_round(
+            epoch, last_minute, last_slot, CRON_ENTRIES, SEC_ENTRIES, on_fire)
+
+    self_renew()
