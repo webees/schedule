@@ -73,11 +73,14 @@ def lock(name, slot):
     尝试创建 refs/tags/lock/{name}-{slot}
     返回 (是否获锁, 原因)
     """
-    if not SHA: return False, "no sha"
+    if not SHA: return False, "no-sha"
     _, err, rc = gh("api", f"{API}/git/refs",
                     "-f", f"ref=refs/tags/lock/{name}-{slot}",
                     "-f", f"sha={SHA}")
-    return rc == 0, err if rc else "ok"
+    if rc == 0:
+        return True, "ok"
+    # 注意: err 可能含仓库名, 仅 DEBUG 模式才暴露
+    return False, err if DEBUG else "exists"
 
 def is_expired(lock_tag, now_epoch, now_minute):
     """
