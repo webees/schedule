@@ -61,28 +61,39 @@ def trigger(repo, wf):
 #        422 = 锁已存在 → 跳过
 # ══════════════════════════════════════════════════
 
+SHA = None  # 缓存 main 分支 SHA, 每轮刷新一次
+
+def refresh_sha():
+    """刷新 main 分支 SHA 缓存"""
+    global SHA
+    SHA = api_get(f"{API}/git/ref/heads/main", "-q", ".object.sha")
+
 def lock(name, slot):
     """
     尝试创建 refs/tags/lock/{name}-{slot}
     返回 (是否获锁, 原因)
     """
-    sha = api_get(f"{API}/git/ref/heads/main", "-q", ".object.sha")
-    if not sha:
+    if not SHA:
         return False, "no sha"
     _, err, rc = gh("api", f"{API}/git/refs",
                     "-f", f"ref=refs/tags/lock/{name}-{slot}",
-                    "-f", f"sha={sha}")
+                    "-f", f"sha={SHA}")
     return rc == 0, err if rc else "ok"
 
 def clean_locks():
     """删除所有过期的 lock ref"""
-    now = str(int(time.time()))
+    now_epoch = int(time.time())
+    now_min   = time.strftime('%Y%m%d%H%M', time.gmtime())
     for ref in api_get(f"{API}/git/refs/tags/lock", "-q", ".[].ref").splitlines():
+        # 锁名格式: lock/{name}-{slot}
+        # slot 是 epoch//N (秒级) 或 YYYYMMDDHHmm (cron)
         tag = ref.rsplit("-", 1)[-1]
-        # 过期判断: 纯数字(epoch slot) 小于 now-300, 或日期格式小于当前分钟
-        if tag.isdigit() and int(tag) < int(now) - 300:
-            gh("api", "-X", "DELETE", f"{API}/git/{ref}")
-        elif not tag.isdigit() and tag < time.strftime('%Y%m%d%H%M', time.gmtime()):
+        expired = False
+        if len(tag) == 12 and tag.isdigit():  # cron: 202602140805
+            expired = tag < now_min
+        elif tag.isdigit():                   # sec: epoch//N
+            expired = int(tag) < now_epoch // IV - 10
+        if expired:
             gh("api", "-X", "DELETE", f"{API}/git/{ref}")
 
 # ══════════════════════════════════════════════════
@@ -166,7 +177,8 @@ CRON_ENTRIES, SEC_ENTRIES = parse_dispatch()
 # ══════════════════════════════════════════════════
 
 clean_locks()
-last_m = None
+last_m    = None
+last_slot = {}  # 秒级任务去重: {n: last_slot_value}
 print("══════════════════════════════════════════════════")
 print(f"  {SELF} | 运行={RUN} | 轮次={N} | 任务={len(CRON_ENTRIES) + len(SEC_ENTRIES)}")
 print("══════════════════════════════════════════════════")
@@ -189,10 +201,11 @@ for i in range(1, N + 1):
 
     # ② 对齐 30 秒边界
     time.sleep(IV - time.time() % IV or 0.1)
-    now   = time.gmtime()
     epoch = int(time.time())
+    now   = time.gmtime(epoch)
     t     = time.strftime('%H:%M:%S', now)
     m     = time.strftime('%Y%m%d%H%M', now)
+    refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
 
     # ③a cron 任务: 同一分钟内只调度一次
     if m != last_m:
@@ -208,15 +221,20 @@ for i in range(1, N + 1):
                 ok = trigger(repo, wf)
                 print(f"  {'✅' if ok else '❌'} #{idx}")
 
-    # ③b 秒级任务: epoch // n 作为时间槽, 锁去重
+    # ③b 秒级任务: epoch // n 作为时间槽, 本地+锁双重去重
     for j, (n, repo, wf) in enumerate(SEC_ENTRIES):
         slot = epoch // n
+        if last_slot.get(n) == slot:
+            continue  # 同一时间槽内不重复尝试
+        last_slot[n] = slot
         lock_name = f"s{n}"
         won, reason = lock(lock_name, str(slot))
+        idx = len(CRON_ENTRIES) + j
         if won:
-            idx = len(CRON_ENTRIES) + j
             ok = trigger(repo, wf)
-            print(f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} #{idx} @{n}s {'✅' if ok else '❌'}")
+            print(f"🎯 [{i}/{N}] {t} #{idx} @{n}s {'✅' if ok else '❌'}")
+        else:
+            print(f"⏭️ [{i}/{N}] {t} #{idx} @{n}s 锁已占({reason})")
 
     # ④ 互守护: 每轮检查兄弟, 死亡则直接重启
     if not alive(PEER):

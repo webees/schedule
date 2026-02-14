@@ -18,10 +18,10 @@
 ## Architecture
 
 ```
-tick-a (for loop, 5h resident) ──┐
-                                 ├── Git Ref atomic lock ──→ external repos
-tick-b (for loop, 5.5h resident) ┘
-         ↕ mutual guard (direct restart)
+tick-a (5h,  600 rounds) ──┐
+                            ├── Git Ref atomic lock ──→ external repos
+tick-b (5.5h, 660 rounds) ──┘
+     ↕ mutual guard (direct restart)
 ```
 
 ## Atomic Lock
@@ -37,7 +37,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 |----------|-------------|
 | Atomic | Same ref cannot be created twice |
 | Race-free | No status polling, no API delay window |
-| Self-cleaning | Old lock tags auto-deleted every round (30s) |
+| Self-cleaning | Old lock tags auto-deleted every 5 minutes |
 
 ## Self-Healing
 
