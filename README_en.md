@@ -20,9 +20,9 @@
 
 ```
 tick-a (5h,   600 rounds) ──┐
-                            ├── Git Ref atomic lock ──→ dispatch
+                             ├── Git Ref atomic lock ──→ dispatch
 tick-b (5.5h, 660 rounds) ──┘
-       ↕ mutual guard (every 30s)
+       ↕ mutual guard
 ```
 
 ## Atomic Lock
@@ -50,7 +50,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | Self-destroy | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
-|------|---|---|-----|----|----- |
+|------|---|---|-----|-----|------|
 | tick-a | 🟢 running | 🔄 renew | 🟢 running | 🟢 running | 🔄 renew |
 | tick-b | 🟢 running | 🟢 running | 🔄 renew | 🟢 running | 🟢 running |
 
@@ -68,12 +68,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 ```
 .github/workflows/
-├── tick-a.yml        Timer A (600 rounds ≈ 5h)
-└── tick-b.yml        Timer B (660 rounds ≈ 5.5h)
+├── tick-a.yml          Timer A (600 rounds ≈ 5h)
+└── tick-b.yml          Timer B (660 rounds ≈ 5.5h)
 
-tick.py               Timer + atomic lock + dispatcher
-test_tick.py          Unit tests (257 cases, incl. fast-forward sim)
-AGENTS.md             AI coding guidelines
+tick.py                 Timer + atomic lock + dispatcher
+test_tick.py            Unit tests (257 cases, incl. fast-forward sim)
+AGENTS.md               AI coding guidelines
 ```
 
 ## Core Functions

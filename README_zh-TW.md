@@ -20,9 +20,9 @@
 
 ```
 tick-a (5h,   600 rounds) ──┐
-                              ├── Git Ref 原子鎖 ──→ 外部倉庫
+                             ├── Git Ref 原子鎖 ──→ 外部倉庫
 tick-b (5.5h, 660 rounds) ──┘
-       ↕ 互守護 (直接重啟對方)
+       ↕ 互守護
 ```
 
 ## 原子鎖
@@ -50,7 +50,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 | 自毀 | `cancel-in-progress` + run_id 偵測，新程式碼推送秒切換 |
 
 | 小時 | 0 | 5 | 5.5 | 10 | 10.5 |
-|------|---|---|-----|----|----- |
+|------|---|---|-----|-----|------|
 | tick-a | 🟢 運行 | 🔄 續期 | 🟢 運行 | 🟢 運行 | 🔄 續期 |
 | tick-b | 🟢 運行 | 🟢 運行 | 🔄 續期 | 🟢 運行 | 🟢 運行 |
 
@@ -68,12 +68,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 
 ```
 .github/workflows/
-├── tick-a.yml        定時器 A (600 輪 ≈ 5h)
-└── tick-b.yml        定時器 B (660 輪 ≈ 5.5h)
+├── tick-a.yml          定時器 A (600 輪 ≈ 5h)
+└── tick-b.yml          定時器 B (660 輪 ≈ 5.5h)
 
-tick.py               定時器 + 原子鎖 + 調度器
-test_tick.py          單元測試 (257 用例, 含快進模擬)
-AGENTS.md             AI 編碼準則
+tick.py                 定時器 + 原子鎖 + 調度器
+test_tick.py            單元測試 (257 用例, 含快進模擬)
+AGENTS.md               AI 編碼準則
 ```
 
 ## 核心函數
