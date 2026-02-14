@@ -284,8 +284,9 @@ if __name__ == "__main__":
             print(f"🛡️ {PEER} 已死, 唤醒")
             gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
 
-        # ③ 清理过期锁
+        # ③ 清理过期锁 + 旧 run
         clean_locks()
+        clean_runs()
 
         # ④ 对齐 30 秒边界 (运维操作在前, 调度在后 → 时间更精确)
         time.sleep(IV - time.time() % IV or 0.1)
