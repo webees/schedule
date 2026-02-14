@@ -15,7 +15,7 @@
 
 | | |
 |---|---|
-| ⏱️ **Second precision** | `time.sleep(30 - time.time() % 30)` aligns to 30-second boundaries |
+| ⏱️ **Second precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 30-second boundaries |
 | 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
 | 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
@@ -78,6 +78,8 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 tick.py                 Timer + atomic lock + dispatcher
 test_tick.py            Unit tests (257 cases, incl. fast-forward sim)
 AGENTS.md               AI coding guidelines
+.env                    Local task config (syncs with Secret DISPATCH)
+.gitignore              Excludes .env
 ```
 
 ## ⚙️ Core Functions
@@ -87,9 +89,15 @@ AGENTS.md               AI coding guidelines
 | `match_field(expr, value, field_min)` | Single cron field match (`*`, `*/N`, comma, range) |
 | `match_cron(fields, now)` | 5-field cron expression match with day/month offset correction |
 | `parse_dispatch()` | Parse DISPATCH secret, supports comments and blank lines |
-| `is_expired(lock_tag, now_epoch, now_min)` | Lock expiry check (cron/sec/legacy format compatible) |
-| `sanitize_key(key)` | Cron expression → valid ref name |
 | `schedule_round(epoch, ...)` | Pure scheduling logic (no I/O), supports fast-forward simulation |
+| `dispatch(round_num, time_str, ...)` | Lock contention + trigger + logging |
+| `trigger(repo, wf)` | Cross-repo workflow trigger using PAT |
+| `is_expired(lock_tag, now_epoch, now_minute)` | Lock expiry check (cron/sec/legacy format compatible) |
+| `sanitize_key(key)` | Cron expression → valid ref name |
+| `clean_locks()` / `clean_runs()` | Clean expired locks / completed runs |
+| `check_update()` | Detect newer version, exit to yield |
+| `guard_peer()` | Check peer liveness, restart if dead |
+| `self_renew()` | Auto-renew after round completion |
 
 ## 🔌 Extension
 
