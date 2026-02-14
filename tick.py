@@ -46,10 +46,10 @@ def alive(wf):
 PAT_ENV = {**os.environ, "GH_TOKEN": os.environ.get("PAT", "")}
 
 def trigger(repo, wf):
-    """触发目标 workflow (使用 PAT 跨仓库), 返回是否成功"""
+    """触发目标 workflow (使用 PAT 跨仓库), 返回 (是否成功, 错误信息)"""
     r = sp.run(["gh", "workflow", "run", wf, "-R", repo],
                capture_output=True, text=True, env=PAT_ENV)
-    return r.returncode == 0
+    return r.returncode == 0, r.stderr.strip()
 
 # ══════════════════════════════════════════════════
 #  原子锁 — 基于 Git Ref 的分布式互斥
@@ -237,8 +237,8 @@ def dispatch(round_num, time_str, idx, label, show, repo, wf):
     won, reason = lock(*label)
     tag = f"[{round_num}/{ROUNDS}] {time_str} #{idx}"
     if won:
-        ok = trigger(repo, wf)
-        print(f"🎯 {tag} {show} {'✅' if ok else '❌'}")
+        ok, err = trigger(repo, wf)
+        print(f"🎯 {tag} {show} {'✅' if ok else '❌ ' + err}")
     else:
         print(f"⏭️ {tag} {show} 锁已占({reason})")
 
