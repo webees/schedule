@@ -245,7 +245,8 @@ if __name__ == "__main__":
         print(f"  #{idx}  {key}")
     for idx, (n, _, _) in enumerate(SEC_ENTRIES):
         print(f"  #{len(CRON_ENTRIES) + idx}  @{n}s")
-    print(BAR)
+    if CRON_ENTRIES or SEC_ENTRIES:
+        print(BAR)
 
     for i in range(1, N + 1):
 
