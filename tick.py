@@ -187,12 +187,12 @@ CRON_ENTRIES, SEC_ENTRIES = parse_dispatch()
 #  主循环
 #
 #  每 30 秒:
-#    1. sleep 对齐到 30 秒边界
-#    2. 检测是否有新版本 run → 有则退出
-#    3a. cron 任务: 每分钟调度一次
-#    3b. 秒级任务: 按 @Ns 间隔调度
-#    4. 检查兄弟存活, 死则直接重启
-#    5. 清理过期锁
+#    1. 检测是否有新版本 run → 有则退出
+#    2. 检查兄弟存活, 死则直接重启
+#    3. 清理过期锁
+#    4. sleep 对齐到 30 秒边界
+#    5a. cron 任务: 每分钟调度一次
+#    5b. 秒级任务: 按 @Ns 间隔调度
 # ══════════════════════════════════════════════════
 
 BAR = "═" * 50
@@ -249,15 +249,7 @@ if __name__ == "__main__":
 
     for i in range(1, N + 1):
 
-        # ① 对齐 30 秒边界
-        time.sleep(IV - time.time() % IV or 0.1)
-        epoch = int(time.time())
-        now   = time.gmtime(epoch)
-        t     = time.strftime('%H:%M:%S', now)
-        m     = time.strftime('%Y%m%d%H%M', now)
-        refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
-
-        # ② 新版本检测: 存在更新的 run_id → 立即退出让位
+        # ① 新版本检测: 存在更新的 run_id → 立即退出让位
         for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
                       "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
             try:
@@ -266,7 +258,23 @@ if __name__ == "__main__":
             except ValueError:
                 pass
 
-        # ③a cron 任务: 同一分钟内只调度一次
+        # ② 互守护: 每轮检查兄弟, 死亡则直接重启
+        if not alive(PEER):
+            print(f"🛡️ {PEER} 已死, 唤醒")
+            gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
+
+        # ③ 清理过期锁
+        clean_locks()
+
+        # ④ 对齐 30 秒边界 (运维操作在前, 调度在后 → 时间更精确)
+        time.sleep(IV - time.time() % IV or 0.1)
+        epoch = int(time.time())
+        now   = time.gmtime(epoch)
+        t     = time.strftime('%H:%M:%S', now)
+        m     = time.strftime('%Y%m%d%H%M', now)
+        refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
+
+        # ⑤a cron 任务: 同一分钟内只调度一次
         if m != last_m:
             last_m = m
             for idx, (key, fields, repo, wf, lock_id) in enumerate(CRON_ENTRIES):
@@ -274,7 +282,7 @@ if __name__ == "__main__":
                     # lock_id 拼接索引, 避免相同 cron 表达式的不同任务共享锁
                     dispatch(i, t, idx, (f"{lock_id}{idx}", m), key, repo, wf)
 
-        # ③b 秒级任务: epoch // n 作为时间槽, 本地+锁双重去重
+        # ⑤b 秒级任务: epoch // n 作为时间槽, 本地+锁双重去重
         for j, (n, repo, wf) in enumerate(SEC_ENTRIES):
             slot = epoch // n
             if last_slot.get(j) == slot:
@@ -282,14 +290,6 @@ if __name__ == "__main__":
             last_slot[j] = slot
             # lock 名称拼接索引, 避免相同间隔的不同任务共享锁
             dispatch(i, t, len(CRON_ENTRIES) + j, (f"s{n}x{j}", str(slot)), f"@{n}s", repo, wf)
-
-        # ④ 互守护: 每轮检查兄弟, 死亡则直接重启
-        if not alive(PEER):
-            print(f"🛡️ {PEER} 已死, 唤醒")
-            gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
-
-        # ⑤ 清理过期锁
-        clean_locks()
 
     # ══════════════════════════════════════════════════
     #  续期 — 轮次结束后自动启动下一轮

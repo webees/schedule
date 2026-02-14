@@ -19,10 +19,9 @@
 ## 架構
 
 ```
-tick-a (5h,   600 rounds) ──┐
-                             ├── Git Ref 原子鎖 ──→ 外部倉庫
-tick-b (5.5h, 660 rounds) ──┘
-       ↕ 互守護
+tick-a ──┐
+         ├── 原子鎖競爭 ──→ 獲鎖者觸發外部 workflow
+tick-b ──┘
 ```
 
 ## 原子鎖

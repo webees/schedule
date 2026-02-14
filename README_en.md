@@ -19,10 +19,9 @@
 ## Architecture
 
 ```
-tick-a (5h,   600 rounds) ──┐
-                             ├── Git Ref atomic lock ──→ dispatch
-tick-b (5.5h, 660 rounds) ──┘
-       ↕ mutual guard
+tick-a ──┐
+         ├── atomic lock race ──→ winner triggers external workflow
+tick-b ──┘
 ```
 
 ## Atomic Lock
