@@ -4,6 +4,13 @@
 
 > **Make GitHub Actions execute precisely every 30 seconds, bypassing cron's 5-min minimum and throttling delays.**
 
+## Table of Contents
+
+- [Highlights](#-highlights) · [Architecture](#architecture) · [Atomic Lock](#atomic-lock) · [Self-Healing](#self-healing) · [Fault Tolerance](#fault-tolerance)
+- [Files](#files) · [Core Functions](#core-functions) · [Extension](#extension) · [Testing](#testing) · [Startup](#startup)
+
+---
+
 ## ✨ Highlights
 
 | | |
@@ -13,8 +20,6 @@
 | 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 | 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
-
----
 
 ## Architecture
 
