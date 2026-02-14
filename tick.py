@@ -24,6 +24,7 @@ PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
 INTERVAL = 30                                      # 每轮间隔 (秒)
 ROUNDS = 600 + (ord(SELF[-1]) - ord("a")) * 60    # 总轮次: a=600(5h) b=660(5.5h)
+DEBUG  = os.environ.get("DEBUG", "") == "1"        # 调试模式: 显示详细错误信息
 
 # ══════════════════════════════════════════════════
 #  基础工具
@@ -238,7 +239,8 @@ def dispatch(round_num, time_str, idx, label, show, repo, wf):
     tag = f"[{round_num}/{ROUNDS}] {time_str} #{idx}"
     if won:
         ok, err = trigger(repo, wf)
-        print(f"🎯 {tag} {show} {'✅' if ok else '❌ ' + err}")
+        status = '✅' if ok else ('❌ ' + err if DEBUG else '❌')
+        print(f"🎯 {tag} {show} {status}")
     else:
         print(f"⏭️ {tag} {show} 锁已占({reason})")
 
