@@ -19,7 +19,7 @@
 
 ```
 tick-a (5h,   600 rounds) ──┐
-                              ├── Git Ref atomic lock ──→ dispatch
+                            ├── Git Ref atomic lock ──→ dispatch
 tick-b (5.5h, 660 rounds) ──┘
        ↕ mutual guard (every 30s)
 ```

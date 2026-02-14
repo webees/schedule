@@ -84,15 +84,17 @@ def clean_locks():
     """删除所有过期的 lock ref"""
     now_epoch = int(time.time())
     now_min   = time.strftime('%Y%m%d%H%M', time.gmtime())
-    for ref in api_get(f"{API}/git/refs/tags/lock", "-q", ".[].ref").splitlines():
-        # 锁名格式: lock/{name}-{slot}
-        # slot 是 epoch//N (秒级) 或 YYYYMMDDHHmm (cron)
+    raw = api_get(f"{API}/git/refs/tags/lock", "-q", ".[].ref")
+    if not raw or raw.startswith("{"):
+        return  # 无锁或 API 返回错误 JSON (404)
+    for ref in raw.splitlines():
         tag = ref.rsplit("-", 1)[-1]
         expired = False
         if len(tag) == 12 and tag.isdigit():  # cron: 202602140805
             expired = tag < now_min
         elif tag.isdigit():                   # sec: epoch//N
-            expired = int(tag) < now_epoch // IV - 10
+            # 5 分钟前的 slot 视为过期 (slot 值约 epoch/30~epoch/300)
+            expired = int(tag) * IV < now_epoch - 300
         if expired:
             gh("api", "-X", "DELETE", f"{API}/git/{ref}")
 
@@ -213,7 +215,7 @@ for i in range(1, N + 1):
         for idx, (key, fields, repo, wf) in enumerate(CRON_ENTRIES):
             if not match_cron(fields, now):
                 continue
-            lock_name = key.replace(" ", "").replace("/", "").replace("*", "x")
+            lock_name = "".join(c if c.isalnum() else "x" for c in key)
             won, reason = lock(lock_name, m)
             status = "获锁→dispatch" if won else f"锁已占({reason})"
             print(f"{'🎯' if won else '⏭️'} [{i}/{N}] {t} #{idx} {key} {status}")
