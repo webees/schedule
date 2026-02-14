@@ -45,8 +45,7 @@ def alive(wf):
 
 def trigger(repo, wf):
     """触发目标 workflow, 返回是否成功"""
-    _, err, rc = gh("workflow", "run", wf, "-R", repo)
-    if rc: print(f"    stderr: {err[:200]}")
+    _, _, rc = gh("workflow", "run", wf, "-R", repo)
     return rc == 0
 
 # ══════════════════════════════════════════════════
@@ -110,6 +109,15 @@ def clean_locks():
         lock_tag = ref.rsplit("/", 1)[-1]  # {name}-{slot}
         if is_expired(lock_tag, now_epoch, now_min):
             gh("api", "-X", "DELETE", f"{API}/git/{ref}")
+
+def clean_runs():
+    """删除已完成的 workflow run, 保留当前运行中的"""
+    ids = gh("run", "list", "-R", REPO, "--status", "completed",
+             "--limit", "100", "--json", "databaseId",
+             "-q", f"[.[] | select(.databaseId != {RUN})].databaseId")[0].split()
+    for rid in ids:
+        subprocess.Popen(["gh", "run", "delete", rid, "-R", REPO],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # ══════════════════════════════════════════════════
 #  调度 — crontab 5 字段 + 秒级语法
@@ -233,11 +241,8 @@ def dispatch(i, t, idx, label, show, repo, wf):
     else:
         print(f"⏭️ {tag} {show} 锁已占({reason})")
 
-if __name__ == "__main__":
-
-    clean_locks()
-    last_m    = None
-    last_slot = {}  # 秒级任务去重: {j: last_slot_value}
+def print_banner():
+    """启动时打印运行信息和任务列表"""
     print(BAR)
     print(f"  {SELF} | 运行={RUN} | 轮次={N} | 任务={len(CRON_ENTRIES) + len(SEC_ENTRIES)}")
     print(BAR)
@@ -248,16 +253,29 @@ if __name__ == "__main__":
     if CRON_ENTRIES or SEC_ENTRIES:
         print(BAR)
 
+def check_newer():
+    """检测是否有更新的 run_id, 有则退出让位"""
+    for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
+                  "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
+        try:
+            if rid and int(rid) > RUN:
+                sys.exit(print(f"🛑 #{rid} 更新, 退出"))
+        except ValueError:
+            pass
+
+if __name__ == "__main__":
+
+    clean_runs()
+    clean_locks()
+    print_banner()
+
+    last_m    = None
+    last_slot = {}  # 秒级任务去重: {j: last_slot_value}
+
     for i in range(1, N + 1):
 
-        # ① 新版本检测: 存在更新的 run_id → 立即退出让位
-        for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
-                      "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
-            try:
-                if rid and int(rid) > RUN:
-                    sys.exit(print(f"🛑 #{rid} 更新, 退出"))
-            except ValueError:
-                pass
+        # ① 新版本检测
+        check_newer()
 
         # ② 互守护: 每轮检查兄弟, 死亡则直接重启
         if not alive(PEER):

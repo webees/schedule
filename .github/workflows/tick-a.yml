@@ -22,7 +22,7 @@ jobs:
       - run: python3 tick.py
         env:
           PYTHONUNBUFFERED: "1"
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PAT }}
           SELF: ${{ github.workflow }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
