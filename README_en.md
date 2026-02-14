@@ -6,8 +6,8 @@
 
 ## Table of Contents
 
-- [Highlights](#-highlights) · [Architecture](#architecture) · [Atomic Lock](#atomic-lock) · [Self-Healing](#self-healing) · [Fault Tolerance](#fault-tolerance)
-- [Files](#files) · [Core Functions](#core-functions) · [Extension](#extension) · [Testing](#testing) · [Startup](#startup)
+- [Highlights](#-highlights) · [Architecture](#%EF%B8%8F-architecture) · [Atomic Lock](#-atomic-lock) · [Self-Healing](#%EF%B8%8F-self-healing) · [Fault Tolerance](#-fault-tolerance)
+- [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Extension](#-extension) · [Testing](#-testing) · [Startup](#-startup)
 
 ---
 
@@ -21,7 +21,7 @@
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 | 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 tick-a ──┐
@@ -29,7 +29,7 @@ tick-a ──┐
 tick-b ──┘
 ```
 
-## Atomic Lock
+## 🔒 Atomic Lock
 
 Both ticks attempt to create the same Git Ref each round. GitHub guarantees only one succeeds:
 
@@ -44,7 +44,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | Race-free | No status polling, no API delay window |
 | Self-cleaning | Old lock tags auto-deleted every round |
 
-## Self-Healing
+## 🛡️ Self-Healing
 
 | Mechanism | Description |
 |-----------|-------------|
@@ -60,7 +60,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 > At least 1 chain is always online
 
-## Fault Tolerance
+## 🔄 Fault Tolerance
 
 | Scenario | Result |
 |----------|--------|
@@ -68,7 +68,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | One alive | 1 direct lock → exec 1 time ✅ |
 | Both dead | `git push main` or manual trigger any tick 🔄 |
 
-## Files
+## 📁 Files
 
 ```
 .github/workflows/
@@ -80,7 +80,7 @@ test_tick.py            Unit tests (257 cases, incl. fast-forward sim)
 AGENTS.md               AI coding guidelines
 ```
 
-## Core Functions
+## ⚙️ Core Functions
 
 | Function | Purpose |
 |----------|---------|
@@ -91,7 +91,7 @@ AGENTS.md               AI coding guidelines
 | `sanitize_key(key)` | Cron expression → valid ref name |
 | `schedule_round(epoch, ...)` | Pure scheduling logic (no I/O), supports fast-forward simulation |
 
-## Extension
+## 🔌 Extension
 
 Single config: Secret `DISPATCH`, one entry per line, supports comments (`#`) and blank lines:
 
@@ -124,7 +124,7 @@ Example:
 
 > **Adding tasks only requires changing the Secret, no code changes.**
 
-## Testing
+## 🧪 Testing
 
 ```bash
 python3 test_tick.py
@@ -132,7 +132,7 @@ python3 test_tick.py
 
 Covers: pure function verification, lock expiry checks, end-to-end DISPATCH parsing, 24-hour fast-forward scheduling simulation.
 
-## Startup
+## 🚀 Startup
 
 ```bash
 gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
@@ -140,6 +140,6 @@ gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
 
 Or `git push main` to auto-start both chains.
 
-## License
+## 📄 License
 
 [MIT](LICENSE)
