@@ -118,7 +118,7 @@ def clean_runs():
     """删除已完成的 workflow run, 保留当前运行中的"""
     ids = gh("run", "list", "-R", REPO, "--status", "completed",
              "--limit", "100", "--json", "databaseId",
-             "-q", f"[.[] | select(.databaseId != {RUN})].databaseId")[0].split()
+             "-q", f".[] | select(.databaseId != {RUN}) | .databaseId")[0].split()
     for rid in ids:
         sp.Popen(["gh", "run", "delete", rid, "-R", REPO],
                  stdout=sp.DEVNULL, stderr=sp.DEVNULL)
