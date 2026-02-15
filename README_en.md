@@ -143,11 +143,11 @@ AGENTS.md               AI coding guidelines
 
 ## 🧪 Testing
 
+> Covers: pure function verification, lock expiry checks, end-to-end DISPATCH parsing, 24-hour fast-forward scheduling simulation.
+
 ```bash
 python3 test_tick.py
 ```
-
-Covers: pure function verification, lock expiry checks, end-to-end DISPATCH parsing, 24-hour fast-forward scheduling simulation.
 
 ## 📄 License
 
