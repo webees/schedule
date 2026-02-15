@@ -20,6 +20,9 @@
 
 ## 函数设计
 
+- **命名规则**：`动词_名词`，谓词用 `is_` 前缀
+  - ✅ `acquire_lock`, `clean_runs`, `trigger_workflow`, `is_alive`
+  - ❌ `lock` (歧义), `alive` (缺前缀), `self_renew` (主语在前)
 - 可测试性优先：核心逻辑提取为**纯函数** (无 I/O)
 - 纯函数与 I/O 函数分离，便于单元测试和快进模拟
 - 使用回调模式解耦决策与执行 (如 `on_fire` 回调)

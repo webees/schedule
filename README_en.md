@@ -120,20 +120,46 @@ AGENTS.md               AI coding guidelines
 
 ## ⚙️ Core Functions
 
+> Naming: `verb_noun`, predicates use `is_` prefix
+
+**Parsing**
+
 | Function | Purpose |
 |----------|---------|
-| `match_field(expr, value, field_min)` | Single cron field match (`*`, `*/N`, comma, range) |
-| `match_cron(fields, now)` | 5-field cron expression match with day/month offset correction |
-| `parse_dispatch()` | Parse DISPATCH secret, supports comments and blank lines |
-| `schedule_round(epoch, ...)` | Pure scheduling logic (no I/O), supports fast-forward simulation |
-| `dispatch(round_num, time_str, ...)` | Lock contention + trigger + logging |
-| `trigger(repo, wf)` | Cross-repo workflow trigger using PAT |
-| `is_expired(lock_tag, now_epoch, now_minute)` | Lock expiry check (cron/sec/legacy format compatible) |
-| `sanitize_key(key)` | Cron expression → valid ref name |
-| `clean_locks()` / `clean_runs()` | Clean expired locks / completed runs |
-| `check_update()` | Detect newer version, exit to yield |
-| `guard_peer()` | Check peer liveness, restart if dead |
-| `self_renew()` | Auto-renew after round completion |
+| `match_field` | Single cron field match (`*`, `*/N`, comma, range) |
+| `match_cron` | 5-field cron expression match with day/month offset correction |
+| `parse_dispatch` | Parse DISPATCH secret, supports comments and blank lines |
+
+**Predicates**
+
+| Function | Purpose |
+|----------|---------|
+| `is_expired` | Lock expiry check (cron/sec/legacy format compatible) |
+| `is_alive` | Check if workflow is running |
+
+**Scheduling**
+
+| Function | Purpose |
+|----------|---------|
+| `schedule_round` | Pure scheduling logic (no I/O), supports fast-forward simulation |
+| `dispatch_task` | Lock contention + trigger + logging |
+| `trigger_workflow` | Cross-repo workflow trigger using PAT |
+
+**Lock**
+
+| Function | Purpose |
+|----------|---------|
+| `acquire_lock` | Create Git Ref for distributed lock |
+| `sanitize_key` | Cron expression → valid ref name |
+
+**Maintenance**
+
+| Function | Purpose |
+|----------|---------|
+| `clean_locks` / `clean_runs` | Clean expired locks / completed runs |
+| `check_update` | Detect newer version, exit to yield |
+| `guard_peer` | Check peer liveness, restart if dead |
+| `renew_self` | Auto-renew after round completion |
 
 ## 🧪 Testing
 
