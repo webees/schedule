@@ -7,7 +7,7 @@
 ## Table of Contents
 
 - [Highlights](#-highlights) · [Usage](#-usage) · [Startup](#-startup)
-- [Atomic Lock](#-atomic-lock) · [Self-Healing](#%EF%B8%8F-self-healing) · [Fault Tolerance](#-fault-tolerance)
+- [Atomic Lock](#-atomic-lock) · [High Availability](#%EF%B8%8F-high-availability) · [Fault Tolerance](#-fault-tolerance)
 - [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Testing](#-testing)
 
 ---
@@ -18,7 +18,7 @@
 |---|---|
 | ⏱️ **Second precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 30-second boundaries |
 | 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
-| 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
+| 🛡️ **24/7 HA** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 | 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
 
@@ -63,7 +63,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | Race-free | No status polling, no API delay window |
 | Self-cleaning | Old lock tags auto-deleted every round |
 
-## 🛡️ Self-Healing
+## 🛡️ High Availability
 
 | Mechanism | Description |
 |-----------|-------------|
