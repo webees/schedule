@@ -67,10 +67,10 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 | Mechanism | Description |
 |-----------|-------------|
-| Staggered renewal | tick-a 600 rounds / tick-b 660 rounds, never gap simultaneously |
-| Auto-renewal | `workflow_dispatch` next cycle on completion |
+| Staggered    | tick-a 600 rounds / tick-b 660 rounds, never gap simultaneously |
+| Auto-renew   | `workflow_dispatch` next cycle on completion |
 | Mutual guard | Check sibling every round (30s), restart directly if dead |
-| Self-destroy | `cancel-in-progress` + run_id detection, instant switch on push |
+| Version exit | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
 |------|---|---|-----|-----|------|
