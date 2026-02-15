@@ -27,7 +27,8 @@ jobs:
                   | join(",")'
           )
           echo "alive=${alive}" >> "$GITHUB_OUTPUT"
-      - if: ${{ !contains(steps.check.outputs.alive, 'tick-a') }}
-        run: gh workflow run tick-a.yml -R "$REPO"
-      - if: ${{ !contains(steps.check.outputs.alive, 'tick-b') }}
-        run: gh workflow run tick-b.yml -R "$REPO"
+      - run: |
+          echo "$ALIVE" | grep -q tick-a || gh workflow run tick-a.yml -R "$REPO"
+          echo "$ALIVE" | grep -q tick-b || gh workflow run tick-b.yml -R "$REPO"
+        env:
+          ALIVE: ${{ steps.check.outputs.alive }}
