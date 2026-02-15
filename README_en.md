@@ -2,23 +2,23 @@
 
 [简体中文](README.md) | [繁體中文](README_zh-TW.md)
 
-> **Make GitHub Actions execute precisely every 30 seconds, bypassing cron's 5-min minimum and throttling delays.**
+> **Lightweight scheduler with second-level precision. Supports crontab + second-level syntax, single file, zero dependencies.**
 
 ## Table of Contents
 
-- [Highlights](#-highlights) · [Usage](#-usage) · [Startup](#-startup)
-- [Atomic Lock](#-atomic-lock) · [High Availability](#%EF%B8%8F-high-availability) · [Fault Tolerance](#-fault-tolerance)
+- [Features](#-features) · [Usage](#-usage) · [Startup](#-startup)
+- [Atomic Lock](#-atomic-lock) · [High Availability](#%EF%B8%8F-high-availability)
 - [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Testing](#-testing)
 
 ---
 
-## ✨ Highlights
+## ✨ Features
 
 | | |
 |---|---|
-| ⏱️ **Second precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 30-second boundaries |
-| 🔒 **Atomic dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
-| 🛡️ **24/7 HA** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
+| ⏱️ **Precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 30-second boundaries |
+| 🔒 **Dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
+| 🛡️ **Available** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 | 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
 
@@ -63,6 +63,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | Race-free | No status polling, no API delay window |
 | Self-cleaning | Old lock tags auto-deleted every round |
 
+| Scenario | Result |
+|----------|--------|
+| Both alive | 2 race → exec 1 time ✅ |
+| One alive | 1 direct lock → exec 1 time ✅ |
+| Both dead | `git push main` or manual trigger any tick 🔄 |
+
 ## 🛡️ High Availability
 
 | Mechanism | Description |
@@ -78,14 +84,6 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 | tick-b | 🟢 running | 🟢 running | 🔄 renew | 🟢 running | 🟢 running |
 
 > At least 1 chain is always online
-
-## 🔄 Fault Tolerance
-
-| Scenario | Result |
-|----------|--------|
-| Both alive | 2 race → exec 1 time ✅ |
-| One alive | 1 direct lock → exec 1 time ✅ |
-| Both dead | `git push main` or manual trigger any tick 🔄 |
 
 ## 📁 Files
 
