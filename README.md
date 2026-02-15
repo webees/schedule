@@ -2,7 +2,7 @@
 
 [English](README_en.md) | [繁體中文](README_zh-TW.md)
 
-> **秒级精度的轻量调度器，支持 crontab + 秒级语法，单文件零依赖。**
+> **基于 GitHub Actions 的轻量调度器，支持 crontab + 秒级语法，单文件零依赖。**
 
 ## 目录
 

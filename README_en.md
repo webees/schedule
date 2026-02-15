@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [繁體中文](README_zh-TW.md)
 
-> **Lightweight scheduler with second-level precision. Supports crontab + second-level syntax, single file, zero dependencies.**
+> **Lightweight scheduler built on GitHub Actions. Supports crontab + second-level syntax, single file, zero dependencies.**
 
 ## Table of Contents
 
