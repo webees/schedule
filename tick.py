@@ -36,7 +36,7 @@ def gh(*args):
     r = sp.run(["gh", *args], capture_output=True, text=True)
     return r.stdout.strip(), r.stderr.strip(), r.returncode
 
-def api_get(*args):
+def gh_api(*args):
     """调用 GitHub API (GET), 返回 stdout"""
     return gh("api", *args)[0]
 
@@ -82,7 +82,7 @@ SHA = None  # 缓存 main 分支 SHA, 每轮刷新一次
 def refresh_sha():
     """刷新 main 分支 SHA 缓存"""
     global SHA
-    SHA = api_get(f"{API}/git/ref/heads/main", "-q", ".object.sha")
+    SHA = gh_api(f"{API}/git/ref/heads/main", "-q", ".object.sha")
 
 def acquire_lock(name, slot):
     """
@@ -233,7 +233,7 @@ def clean_locks():
     """删除所有过期的 lock ref"""
     now_epoch = int(time.time())
     now_minute = time.strftime('%Y%m%d%H%M', time.gmtime())
-    raw = api_get(f"{API}/git/refs/tags/lock", "-q", ".[].ref")
+    raw = gh_api(f"{API}/git/refs/tags/lock", "-q", ".[].ref")
     if not raw or raw.startswith("{"):
         return  # 无锁或 API 返回错误 JSON (404)
     for ref in raw.splitlines():
