@@ -6,7 +6,7 @@
 
 ## Table of Contents
 
-- [Highlights](#-highlights) · [Architecture](#%EF%B8%8F-architecture) · [Usage](#-usage) · [Startup](#-startup)
+- [Highlights](#-highlights) · [Usage](#-usage) · [Startup](#-startup)
 - [Atomic Lock](#-atomic-lock) · [Self-Healing](#%EF%B8%8F-self-healing) · [Fault Tolerance](#-fault-tolerance)
 - [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Testing](#-testing)
 
@@ -21,14 +21,6 @@
 | 🛡️ **24/7 self-healing** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
 | 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
-
-## 🏗️ Architecture
-
-```
-tick-a ──┐
-         ├── atomic lock race ──→ winner triggers external workflow
-tick-b ──┘
-```
 
 ## 📋 Usage
 
