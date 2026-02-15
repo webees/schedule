@@ -20,7 +20,6 @@ import os, subprocess as sp, sys, time
 SELF = os.environ["SELF"]                          # 自身 workflow: tick-a | tick-b
 REPO = os.environ["REPO"]                          # 当前仓库: owner/repo
 RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版本检测
-PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
 INTERVAL   = 10                                     # 每轮间隔 (秒)
 DURATION   = 18000 + (ord(SELF[-1]) - ord("a")) * 1800  # 运行时长(秒): a=5h b=5.5h
@@ -39,15 +38,6 @@ def gh(*args):
 def gh_api(*args):
     """调用 GitHub API (GET), 返回 stdout"""
     return gh("api", *args)[0]
-
-# ══════════════════════════════════════════════════
-#  判断 — 谓词函数
-# ══════════════════════════════════════════════════
-
-def is_alive(wf):
-    """检查指定 workflow 是否正在运行或排队中"""
-    return gh("run", "list", "-w", f"{wf}.yml", "--json", "status",
-              "-q", ".[0].status", "-R", REPO, "--limit", "1")[0] in ("in_progress", "queued")
 
 def is_expired(lock_tag, now_epoch, now_minute):
     """
@@ -257,18 +247,6 @@ def check_update():
            "-R", REPO)[0].strip() == "true":
         sys.exit(print("🛑 更新版本存在, 退出"))
 
-def guard_peer():
-    """检查兄弟存活, 死亡则重启"""
-    if not is_alive(PEER):
-        print(f"🛡️ {PEER} 已死, 唤醒")
-        gh("workflow", "run", f"{PEER}.yml", "-R", REPO)
-
-def renew_self():
-    """轮次结束后自动续期"""
-    if not is_alive(SELF):
-        print(f"🔄 轮次结束, 续期")
-        gh("workflow", "run", f"{SELF}.yml", "-R", REPO)
-    print(f"✅ {SELF} 完成")
 
 def print_banner():
     """启动时打印运行信息和任务列表"""
@@ -305,9 +283,8 @@ if __name__ == "__main__":
 
     while time.time() < end_time:
 
-        # ① 运维: 版本检测 + 互守护 + 清理
+        # ① 运维: 版本检测 + 清理
         check_update()
-        guard_peer()
         clean_locks()
         clean_runs()
 
@@ -330,5 +307,3 @@ if __name__ == "__main__":
             execute_task(time_str, idx, label, show, repo, wf)
         last_minute, last_slot = scan_round(
             epoch, last_minute, last_slot, CRON_ENTRIES, SEC_ENTRIES, on_fire)
-
-    renew_self()
