@@ -276,7 +276,7 @@ def renew_self():
 def print_banner():
     """启动时打印运行信息和任务列表"""
     print(BAR)
-    print(f"  {SELF} | 运行={RUN} | 轮次={ROUNDS} | 任务={len(CRON_ENTRIES) + len(SEC_ENTRIES)}")
+    print(f"  {SELF} | id={RUN}")
     print(BAR)
     for idx, (key, _, _, _, _) in enumerate(CRON_ENTRIES):
         print(f"  #{idx}  {key}")
