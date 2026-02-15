@@ -148,8 +148,8 @@ AGENTS.md               AI 编码准则
 
 | 函数 | 职责 |
 |------|------|
-| `schedule_round` | 纯调度逻辑 (无 I/O)，支持快进模拟 |
-| `dispatch_task` | 竞锁 + 触发 + 日志 |
+| `scan_round` | 扫描本轮匹配的任务 (纯函数，无 I/O) |
+| `execute_task` | 竞锁 + 触发 + 日志 |
 | `trigger_workflow` | 使用 PAT 跨仓库触发 workflow |
 
 **锁**

@@ -188,7 +188,7 @@ def trigger_workflow(repo, wf):
                capture_output=True, text=True, env=PAT_ENV)
     return r.returncode == 0, r.stderr.strip()
 
-def schedule_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_fire):
+def scan_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_fire):
     """
     纯调度逻辑 (不含 I/O), 返回更新后的 (last_minute, last_slot)
 
@@ -214,7 +214,7 @@ def schedule_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_
 
     return last_minute, last_slot
 
-def dispatch_task(round_num, time_str, idx, label, show, repo, wf):
+def execute_task(round_num, time_str, idx, label, show, repo, wf):
     """竞锁 + 触发 + 日志 (通用)"""
     won, reason = acquire_lock(*label)
     tag = f"[{round_num}/{ROUNDS}] {time_str} #{idx}"
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         minute_key = time.strftime('%Y%m%d%H%M', now)  # cron 匹配始终用 UTC
         refresh_sha()  # 每轮刷新一次 SHA, 供所有 acquire_lock() 复用
 
-        # ③ 调度 (统一使用 schedule_round, 与测试共享同一份逻辑)
+        # ③ 调度 (统一使用 scan_round, 与测试共享同一份逻辑)
         def on_fire(idx, show, repo, wf):
             # 计算锁标签: cron 用 sanitized_key+idx, sec 用 s{N}x{J}
             if idx < len(CRON_ENTRIES):
@@ -326,8 +326,8 @@ if __name__ == "__main__":
             else:
                 j = idx - len(CRON_ENTRIES)
                 label = (f"s{SEC_ENTRIES[j][0]}x{j}", str(epoch // SEC_ENTRIES[j][0]))
-            dispatch_task(round_num, time_str, idx, label, show, repo, wf)
-        last_minute, last_slot = schedule_round(
+            execute_task(round_num, time_str, idx, label, show, repo, wf)
+        last_minute, last_slot = scan_round(
             epoch, last_minute, last_slot, CRON_ENTRIES, SEC_ENTRIES, on_fire)
 
     renew_self()

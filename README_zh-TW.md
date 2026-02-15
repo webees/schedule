@@ -148,8 +148,8 @@ AGENTS.md               AI 編碼準則
 
 | 函數 | 職責 |
 |------|------|
-| `schedule_round` | 純調度邏輯 (無 I/O)，支援快進模擬 |
-| `dispatch_task` | 競鎖 + 觸發 + 日誌 |
+| `scan_round` | 掃描本輪匹配的任務 (純函數，無 I/O) |
+| `execute_task` | 競鎖 + 觸發 + 日誌 |
 | `trigger_workflow` | 使用 PAT 跨倉庫觸發 workflow |
 
 **鎖**

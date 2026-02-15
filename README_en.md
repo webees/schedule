@@ -148,8 +148,8 @@ AGENTS.md               AI coding guidelines
 
 | Function | Purpose |
 |----------|---------|
-| `schedule_round` | Pure scheduling logic (no I/O), supports fast-forward simulation |
-| `dispatch_task` | Lock contention + trigger + logging |
+| `scan_round` | Scan current round for matching tasks (pure, no I/O) |
+| `execute_task` | Lock contention + trigger + logging |
 | `trigger_workflow` | Cross-repo workflow trigger using PAT |
 
 **Lock**

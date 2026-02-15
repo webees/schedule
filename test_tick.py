@@ -524,7 +524,7 @@ test("多个特殊字符",    sanitize_key("*/* * * * *"),     "xxxxxxxxxxx")
 #  模拟运行测试 — 快进时钟验证调度正确性
 # ══════════════════════════════════════════════════
 
-from tick import schedule_round
+from tick import scan_round
 
 def simulate(cron_entries, sec_entries, duration_sec, interval=30):
     """
@@ -543,7 +543,7 @@ def simulate(cron_entries, sec_entries, duration_sec, interval=30):
     rounds = duration_sec // interval
     for i in range(rounds):
         epoch = base_epoch + i * interval
-        last_m, last_slot = schedule_round(
+        last_m, last_slot = scan_round(
             epoch, last_m, last_slot, cron_entries, sec_entries, on_fire)
 
     return fires
