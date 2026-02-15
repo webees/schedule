@@ -16,5 +16,11 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     steps:
-      - run: gh run list -w tick-a.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run tick-a.yml -R "$REPO"
-      - run: gh run list -w tick-b.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run tick-b.yml -R "$REPO"
+      - id: check
+        run: |
+          echo "a=$(gh run list -w tick-a.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null)" >> "$GITHUB_OUTPUT"
+          echo "b=$(gh run list -w tick-b.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null)" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.a != 'in_progress' && steps.check.outputs.a != 'queued'
+        run: gh workflow run tick-a.yml -R "$REPO"
+      - if: steps.check.outputs.b != 'in_progress' && steps.check.outputs.b != 'queued'
+        run: gh workflow run tick-b.yml -R "$REPO"
