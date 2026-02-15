@@ -36,7 +36,7 @@
 @10s         owner/repo  poll.yml      # every 10 seconds
 ```
 
-Field syntax: `*` any · `*/5` step · `0,30` list · `1-5` range
+Field syntax: `*` any · `*/5` step · `0,30` list · `1-5` range. Minimum second-level interval: `10s` (= scan cycle).
 
 `TZ_OFFSET` env var controls log time display. Default `0` (UTC), set to `8` for Beijing time.
 
