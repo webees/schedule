@@ -217,7 +217,7 @@ def scan_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_fire
 def execute_task(round_num, time_str, idx, label, show, repo, wf):
     """竞锁 + 触发 + 日志 (通用)"""
     won, reason = acquire_lock(*label)
-    tag = f"{round_num}/{ROUNDS} 🕐 {time_str} #️⃣ {idx} 🏷️ {show}"
+    tag = f"{round_num}/{ROUNDS} 🕐 {time_str} #{idx} 🏷️ {show}"
     if won:
         ok, err = trigger_workflow(repo, wf)
         status = '✅' if ok else ('❌ ' + err if DEBUG else '❌')
