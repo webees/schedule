@@ -21,7 +21,7 @@ jobs:
           alive=$(
             gh run list -R "$REPO" --limit 10 \
               --json workflowName,status \
-              -q 'map(select(.status == "in_progress" or .status == "queued"))
+              -q 'map(select(.status | test("progress|queued")))
                   | map(.workflowName)
                   | unique
                   | join(",")'
