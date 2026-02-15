@@ -69,7 +69,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 | 单链存活 | 1 直接获锁 → 执行 1 次 ✅ |
 | 全灭 | `git push main` 或手动触发任意 tick 🔄 |
 
-## �️ 高可用
+## 🛡️ 高可用
 
 | 机制 | 说明 |
 |------|------|
@@ -85,7 +85,7 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 
 > 至少有 1 条链在线
 
-## �📁 文件
+## 📁 文件
 
 ```
 .github/workflows/
