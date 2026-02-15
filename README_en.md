@@ -73,9 +73,9 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 | Mechanism | Description |
 |-----------|-------------|
-| Staggered    | tick-a 1800 rounds / tick-b 1980 rounds, never gap simultaneously |
-| Auto-renew   | `workflow_dispatch` next cycle on completion |
-| Mutual guard | Check sibling every round (10s), restart directly if dead |
+| Staggered    | tick-a 5h / tick-b 5.5h, never gap simultaneously |
+| Auto-guard   | `if: always()` triggers guard.yml to detect and restart dead chains |
+| Crash recovery | Covers Python crash, timeout, and normal completion |
 | Version exit | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -89,11 +89,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 ```
 .github/workflows/
-├── tick-a.yml          Timer A (600 rounds ≈ 5h)
-└── tick-b.yml          Timer B (660 rounds ≈ 5.5h)
+├── tick-a.yml          Timer A (5h)
+├── tick-b.yml          Timer B (5.5h)
+└── guard.yml           Guard: detect and restart dead chains
 
 tick.py                 Timer + atomic lock + dispatcher
-test_tick.py            Unit tests (257 cases, incl. fast-forward sim)
+test_tick.py            Unit tests (305 cases, incl. fast-forward sim)
 AGENTS.md               AI coding guidelines
 .env                    Local task config (syncs with Secret DISPATCH)
 .gitignore              Excludes .env
@@ -111,7 +112,6 @@ AGENTS.md               AI coding guidelines
 | | `match_cron` | 5-field cron expression match with day/month offset correction |
 | | `parse_dispatch` | Parse DISPATCH secret, supports comments and blank lines |
 | Predicate | `is_expired` | Lock expiry check (cron/sec/legacy format compatible) |
-| | `is_alive` | Check if workflow is running |
 | Schedule | `scan_round` | Scan current round for matching tasks (pure, no I/O) |
 | | `execute_task` | Lock contention + trigger + logging |
 | | `trigger_workflow` | Cross-repo workflow trigger using PAT |
@@ -119,8 +119,6 @@ AGENTS.md               AI coding guidelines
 | | `sanitize_key` | Cron expression → valid ref name |
 | Maintain | `clean_locks` / `clean_runs` | Clean expired locks / completed runs |
 | | `check_update` | Detect newer version, exit to yield |
-| | `guard_peer` | Check peer liveness, restart if dead |
-| | `renew_self` | Auto-renew after round completion |
 
 ## 🧪 Testing
 

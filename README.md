@@ -73,9 +73,9 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 
 | 机制 | 说明 |
 |------|------|
-| 错开续期 | tick-a 1800 轮 / tick-b 1980 轮，永不同时空窗 |
-| 自动续期 | 轮次结束自动 `workflow_dispatch` 下一轮 |
-| 互相守护 | 每轮 (10s) 检查兄弟存活，死亡则直接重启 |
+| 错开运行 | tick-a 5h / tick-b 5.5h，永不同时空窗 |
+| 自动守护 | `if: always()` 触发 guard.yml，检测并拉起死链 |
+| 崩溃自救 | Python 崩溃、超时、正常结束均触发守护 |
 | 新版退出 | `cancel-in-progress` + run_id 检测，新代码推送秒切换 |
 
 | 小时 | 0 | 5 | 5.5 | 10 | 10.5 |
@@ -89,11 +89,12 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 
 ```
 .github/workflows/
-├── tick-a.yml          定时器 A (600 轮 ≈ 5h)
-└── tick-b.yml          定时器 B (660 轮 ≈ 5.5h)
+├── tick-a.yml          定时器 A (5h)
+├── tick-b.yml          定时器 B (5.5h)
+└── guard.yml           守护: 检测并拉起死链
 
 tick.py                 定时器 + 原子锁 + 调度器
-test_tick.py            单元测试 (257 用例, 含快进模拟)
+test_tick.py            单元测试 (305 用例, 含快进模拟)
 AGENTS.md               AI 编码准则
 .env                    本地任务配置 (与 Secret DISPATCH 同步)
 .gitignore              排除 .env
@@ -111,7 +112,6 @@ AGENTS.md               AI 编码准则
 | | `match_cron` | 5 字段 cron 表达式匹配，含日/月偏移修正 |
 | | `parse_dispatch` | 解析 DISPATCH secret，支持注释和空行 |
 | 判断 | `is_expired` | 锁过期判断 (cron/秒级/旧格式兼容) |
-| | `is_alive` | 检查 workflow 是否正在运行 |
 | 调度 | `scan_round` | 扫描本轮匹配的任务 (纯函数，无 I/O) |
 | | `execute_task` | 竞锁 + 触发 + 日志 |
 | | `trigger_workflow` | 使用 PAT 跨仓库触发 workflow |
@@ -119,8 +119,6 @@ AGENTS.md               AI 编码准则
 | | `sanitize_key` | cron 表达式 → 合法 ref 名称 |
 | 维护 | `clean_locks` / `clean_runs` | 清理过期锁 / 已完成的 run |
 | | `check_update` | 检测更新版本，有则退出让位 |
-| | `guard_peer` | 检查兄弟存活，死亡则重启 |
-| | `renew_self` | 轮次结束后自动续期 |
 
 ## 🧪 测试
 

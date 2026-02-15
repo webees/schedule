@@ -15,12 +15,7 @@ jobs:
     steps:
       - run: |
           for wf in tick-a tick-b; do
-            s=$(gh run list -w ${wf}.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null)
-            if [ "$s" != "in_progress" ] && [ "$s" != "queued" ]; then
-              gh workflow run ${wf}.yml -R "$REPO" && echo "🔄 ${wf} restarted"
-            else
-              echo "✅ ${wf} alive"
-            fi
+            gh run list -w ${wf}.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run ${wf}.yml -R "$REPO"
           done
         env:
           GH_TOKEN: ${{ github.token }}
