@@ -22,8 +22,8 @@ REPO = os.environ["REPO"]                          # 当前仓库: owner/repo
 RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版本检测
 PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
-INTERVAL   = 30                                    # 每轮间隔 (秒)
-ROUNDS     = 600 + (ord(SELF[-1]) - ord("a")) * 60  # 总轮次: a=600(5h) b=660(5.5h)
+INTERVAL   = 10                                     # 每轮间隔 (秒)
+ROUNDS     = 1800 + (ord(SELF[-1]) - ord("a")) * 180  # 总轮次: a=1800(5h) b=1980(5.5h)
 DEBUG      = os.environ.get("DEBUG", "") == "1"      # 调试模式: 显示详细错误信息
 TZ_OFFSET  = int(os.environ.get("TZ_OFFSET", "0"))   # 日志时区偏移 (小时): 8 = UTC+8
 
