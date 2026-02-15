@@ -252,13 +252,10 @@ def clean_runs():
 
 def check_update():
     """检测是否有更新的 run_id, 有则退出让位"""
-    for rid in gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
-                  "--json", "databaseId", "-q", ".[].databaseId", "-R", REPO)[0].splitlines():
-        try:
-            if rid and int(rid) > RUN:
-                sys.exit(print(f"🛑 #{rid} 更新, 退出"))
-        except ValueError:
-            pass
+    if gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
+           "--json", "databaseId", "-q", f"any(.[]; .databaseId > {RUN})",
+           "-R", REPO)[0].strip() == "true":
+        sys.exit(print("🛑 更新版本存在, 退出"))
 
 def guard_peer():
     """检查兄弟存活, 死亡则重启"""
