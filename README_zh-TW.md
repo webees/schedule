@@ -122,51 +122,24 @@ AGENTS.md               AI 編碼準則
 
 > 命名規則：`動詞_名詞`，謂詞用 `is_` 前綴
 
-**工具**
-
-| 函數 | 職責 |
-|------|------|
-| `gh` | 執行 gh CLI 命令 |
-| `gh_api` | 調用 GitHub API (GET) |
-
-**解析**
-
-| 函數 | 職責 |
-|------|------|
-| `match_field` | 單個 cron 字段匹配 (`*`, `*/N`, 逗號, 範圍) |
-| `match_cron` | 5 字段 cron 表達式匹配，含日/月偏移修正 |
-| `parse_dispatch` | 解析 DISPATCH secret，支援註釋和空行 |
-
-**判斷**
-
-| 函數 | 職責 |
-|------|------|
-| `is_expired` | 鎖過期判斷 (cron/秒級/舊格式兼容) |
-| `is_alive` | 檢查 workflow 是否正在運行 |
-
-**調度**
-
-| 函數 | 職責 |
-|------|------|
-| `scan_round` | 掃描本輪匹配的任務 (純函數，無 I/O) |
-| `execute_task` | 競鎖 + 觸發 + 日誌 |
-| `trigger_workflow` | 使用 PAT 跨倉庫觸發 workflow |
-
-**鎖**
-
-| 函數 | 職責 |
-|------|------|
-| `acquire_lock` | 創建 Git Ref 獲取分散式鎖 |
-| `sanitize_key` | cron 表達式 → 合法 ref 名稱 |
-
-**維護**
-
-| 函數 | 職責 |
-|------|------|
-| `clean_locks` / `clean_runs` | 清理過期鎖 / 已完成的 run |
-| `check_update` | 檢測更新版本，有則退出讓位 |
-| `guard_peer` | 檢查兄弟存活，死亡則重啟 |
-| `renew_self` | 輪次結束後自動續期 |
+| 分類 | 函數 | 職責 |
+|------|------|------|
+| 工具 | `gh` | 執行 gh CLI 命令 |
+| | `gh_api` | 調用 GitHub API (GET) |
+| 解析 | `match_field` | 單個 cron 字段匹配 (`*`, `*/N`, 逗號, 範圍) |
+| | `match_cron` | 5 字段 cron 表達式匹配，含日/月偏移修正 |
+| | `parse_dispatch` | 解析 DISPATCH secret，支援註釋和空行 |
+| 判斷 | `is_expired` | 鎖過期判斷 (cron/秒級/舊格式兼容) |
+| | `is_alive` | 檢查 workflow 是否正在運行 |
+| 調度 | `scan_round` | 掃描本輪匹配的任務 (純函數，無 I/O) |
+| | `execute_task` | 競鎖 + 觸發 + 日誌 |
+| | `trigger_workflow` | 使用 PAT 跨倉庫觸發 workflow |
+| 鎖 | `acquire_lock` | 創建 Git Ref 獲取分散式鎖 |
+| | `sanitize_key` | cron 表達式 → 合法 ref 名稱 |
+| 維護 | `clean_locks` / `clean_runs` | 清理過期鎖 / 已完成的 run |
+| | `check_update` | 檢測更新版本，有則退出讓位 |
+| | `guard_peer` | 檢查兄弟存活，死亡則重啟 |
+| | `renew_self` | 輪次結束後自動續期 |
 
 ## 🧪 測試
 

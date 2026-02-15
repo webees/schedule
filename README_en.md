@@ -122,51 +122,24 @@ AGENTS.md               AI coding guidelines
 
 > Naming: `verb_noun`, predicates use `is_` prefix
 
-**Tool**
-
-| Function | Purpose |
-|----------|---------|
-| `gh` | Execute gh CLI commands |
-| `gh_api` | Call GitHub API (GET) |
-
-**Parsing**
-
-| Function | Purpose |
-|----------|---------|
-| `match_field` | Single cron field match (`*`, `*/N`, comma, range) |
-| `match_cron` | 5-field cron expression match with day/month offset correction |
-| `parse_dispatch` | Parse DISPATCH secret, supports comments and blank lines |
-
-**Predicates**
-
-| Function | Purpose |
-|----------|---------|
-| `is_expired` | Lock expiry check (cron/sec/legacy format compatible) |
-| `is_alive` | Check if workflow is running |
-
-**Scheduling**
-
-| Function | Purpose |
-|----------|---------|
-| `scan_round` | Scan current round for matching tasks (pure, no I/O) |
-| `execute_task` | Lock contention + trigger + logging |
-| `trigger_workflow` | Cross-repo workflow trigger using PAT |
-
-**Lock**
-
-| Function | Purpose |
-|----------|---------|
-| `acquire_lock` | Create Git Ref for distributed lock |
-| `sanitize_key` | Cron expression → valid ref name |
-
-**Maintenance**
-
-| Function | Purpose |
-|----------|---------|
-| `clean_locks` / `clean_runs` | Clean expired locks / completed runs |
-| `check_update` | Detect newer version, exit to yield |
-| `guard_peer` | Check peer liveness, restart if dead |
-| `renew_self` | Auto-renew after round completion |
+| Category | Function | Purpose |
+|----------|----------|---------|
+| Tool | `gh` | Execute gh CLI commands |
+| | `gh_api` | Call GitHub API (GET) |
+| Parsing | `match_field` | Single cron field match (`*`, `*/N`, comma, range) |
+| | `match_cron` | 5-field cron expression match with day/month offset correction |
+| | `parse_dispatch` | Parse DISPATCH secret, supports comments and blank lines |
+| Predicate | `is_expired` | Lock expiry check (cron/sec/legacy format compatible) |
+| | `is_alive` | Check if workflow is running |
+| Schedule | `scan_round` | Scan current round for matching tasks (pure, no I/O) |
+| | `execute_task` | Lock contention + trigger + logging |
+| | `trigger_workflow` | Cross-repo workflow trigger using PAT |
+| Lock | `acquire_lock` | Create Git Ref for distributed lock |
+| | `sanitize_key` | Cron expression → valid ref name |
+| Maintain | `clean_locks` / `clean_runs` | Clean expired locks / completed runs |
+| | `check_update` | Detect newer version, exit to yield |
+| | `guard_peer` | Check peer liveness, restart if dead |
+| | `renew_self` | Auto-renew after round completion |
 
 ## 🧪 Testing
 

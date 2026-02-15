@@ -122,51 +122,24 @@ AGENTS.md               AI 编码准则
 
 > 命名规则：`动词_名词`，谓词用 `is_` 前缀
 
-**工具**
-
-| 函数 | 职责 |
-|------|------|
-| `gh` | 执行 gh CLI 命令 |
-| `gh_api` | 调用 GitHub API (GET) |
-
-**解析**
-
-| 函数 | 职责 |
-|------|------|
-| `match_field` | 单个 cron 字段匹配 (`*`, `*/N`, 逗号, 范围) |
-| `match_cron` | 5 字段 cron 表达式匹配，含日/月偏移修正 |
-| `parse_dispatch` | 解析 DISPATCH secret，支持注释和空行 |
-
-**判断**
-
-| 函数 | 职责 |
-|------|------|
-| `is_expired` | 锁过期判断 (cron/秒级/旧格式兼容) |
-| `is_alive` | 检查 workflow 是否正在运行 |
-
-**调度**
-
-| 函数 | 职责 |
-|------|------|
-| `scan_round` | 扫描本轮匹配的任务 (纯函数，无 I/O) |
-| `execute_task` | 竞锁 + 触发 + 日志 |
-| `trigger_workflow` | 使用 PAT 跨仓库触发 workflow |
-
-**锁**
-
-| 函数 | 职责 |
-|------|------|
-| `acquire_lock` | 创建 Git Ref 获取分布式锁 |
-| `sanitize_key` | cron 表达式 → 合法 ref 名称 |
-
-**维护**
-
-| 函数 | 职责 |
-|------|------|
-| `clean_locks` / `clean_runs` | 清理过期锁 / 已完成的 run |
-| `check_update` | 检测更新版本，有则退出让位 |
-| `guard_peer` | 检查兄弟存活，死亡则重启 |
-| `renew_self` | 轮次结束后自动续期 |
+| 分类 | 函数 | 职责 |
+|------|------|------|
+| 工具 | `gh` | 执行 gh CLI 命令 |
+| | `gh_api` | 调用 GitHub API (GET) |
+| 解析 | `match_field` | 单个 cron 字段匹配 (`*`, `*/N`, 逗号, 范围) |
+| | `match_cron` | 5 字段 cron 表达式匹配，含日/月偏移修正 |
+| | `parse_dispatch` | 解析 DISPATCH secret，支持注释和空行 |
+| 判断 | `is_expired` | 锁过期判断 (cron/秒级/旧格式兼容) |
+| | `is_alive` | 检查 workflow 是否正在运行 |
+| 调度 | `scan_round` | 扫描本轮匹配的任务 (纯函数，无 I/O) |
+| | `execute_task` | 竞锁 + 触发 + 日志 |
+| | `trigger_workflow` | 使用 PAT 跨仓库触发 workflow |
+| 锁 | `acquire_lock` | 创建 Git Ref 获取分布式锁 |
+| | `sanitize_key` | cron 表达式 → 合法 ref 名称 |
+| 维护 | `clean_locks` / `clean_runs` | 清理过期锁 / 已完成的 run |
+| | `check_update` | 检测更新版本，有则退出让位 |
+| | `guard_peer` | 检查兄弟存活，死亡则重启 |
+| | `renew_self` | 轮次结束后自动续期 |
 
 ## 🧪 测试
 
