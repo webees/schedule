@@ -23,7 +23,7 @@ RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版
 PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
 INTERVAL   = 10                                     # 每轮间隔 (秒)
-ROUNDS     = 1800 + (ord(SELF[-1]) - ord("a")) * 180  # 总轮次: a=1800(5h) b=1980(5.5h)
+DURATION   = 18000 + (ord(SELF[-1]) - ord("a")) * 1800  # 运行时长(秒): a=5h b=5.5h
 DEBUG      = os.environ.get("DEBUG", "") == "1"      # 调试模式: 显示详细错误信息
 TZ_OFFSET  = int(os.environ.get("TZ_OFFSET", "0"))   # 日志时区偏移 (小时): 8 = UTC+8
 
@@ -214,11 +214,11 @@ def scan_round(epoch, last_minute, last_slot, cron_entries, sec_entries, on_fire
 
     return last_minute, last_slot
 
-def execute_task(round_num, time_str, idx, label, show, repo, wf):
+def execute_task(time_str, idx, label, show, repo, wf):
     """竞锁 + 触发 + 日志 (通用)"""
     won, reason = acquire_lock(*label)
-    pad = len(str(ROUNDS))
-    tag = f"{str(round_num).rjust(pad)}/{ROUNDS} 🕐 {time_str} 🏷️ #{idx} {show}"
+    elapsed = int(time.time() - start_time)
+    tag = f"{elapsed // 3600}:{elapsed % 3600 // 60:02d} 🕐 {time_str} 🏷️ #{idx} {show}"
     if won:
         ok, err = trigger_workflow(repo, wf)
         status = '✅' if ok else ('❌ ' + err if DEBUG else '❌')
@@ -299,7 +299,11 @@ if __name__ == "__main__":
     last_minute    = None
     last_slot = {}  # 秒级任务去重: {j: last_slot_value}
 
-    for round_num in range(1, ROUNDS + 1):
+    end_time   = time.time() + DURATION
+    global start_time
+    start_time = time.time()
+
+    while time.time() < end_time:
 
         # ① 运维: 版本检测 + 互守护 + 清理
         check_update()
@@ -307,7 +311,7 @@ if __name__ == "__main__":
         clean_locks()
         clean_runs()
 
-        # ② 对齐 30 秒边界
+        # ② 对齐 10 秒边界
         time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))
         epoch      = int(time.time())
         now        = time.gmtime(epoch)
@@ -323,7 +327,7 @@ if __name__ == "__main__":
             else:
                 j = idx - len(CRON_ENTRIES)
                 label = (f"s{SEC_ENTRIES[j][0]}x{j}", str(epoch // SEC_ENTRIES[j][0]))
-            execute_task(round_num, time_str, idx, label, show, repo, wf)
+            execute_task(time_str, idx, label, show, repo, wf)
         last_minute, last_slot = scan_round(
             epoch, last_minute, last_slot, CRON_ENTRIES, SEC_ENTRIES, on_fire)
 
