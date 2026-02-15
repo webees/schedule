@@ -122,6 +122,13 @@ AGENTS.md               AI coding guidelines
 
 > Naming: `verb_noun`, predicates use `is_` prefix
 
+**Tool**
+
+| Function | Purpose |
+|----------|---------|
+| `gh` | Execute gh CLI commands |
+| `gh_api` | Call GitHub API (GET) |
+
 **Parsing**
 
 | Function | Purpose |
