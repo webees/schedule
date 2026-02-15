@@ -8,7 +8,7 @@
 
 - [Features](#-features) · [Usage](#-usage) · [Startup](#-startup)
 - [Atomic Lock](#-atomic-lock) · [High Availability](#%EF%B8%8F-high-availability)
-- [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Testing](#-testing)
+- [Files](#-files) · [Functions](#%EF%B8%8F-functions) · [Testing](#-testing)
 
 ---
 
@@ -99,7 +99,7 @@ AGENTS.md               AI coding guidelines
 .gitignore              Excludes .env
 ```
 
-## ⚙️ Core Functions
+## ⚙️ Functions
 
 > Naming: `verb_noun`, predicates use `is_` prefix
 
