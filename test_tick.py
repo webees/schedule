@@ -707,6 +707,160 @@ test("e2e 纯注释无触发", len(fires), 0)
 os.environ["DISPATCH"] = ""
 
 # ══════════════════════════════════════════════════
+#  新增: match_field 边界强化
+# ══════════════════════════════════════════════════
+
+print("▶ match_field: 大步进")
+test("*/30 匹配 0",     match_field("*/30", 0),  True)
+test("*/30 匹配 30",    match_field("*/30", 30), True)
+test("*/30 不匹配 15",  match_field("*/30", 15), False)
+test("*/30 不匹配 59",  match_field("*/30", 59), False)
+test("*/59 匹配 0",     match_field("*/59", 0),  True)
+test("*/59 匹配 59",    match_field("*/59", 59), True)
+test("*/59 不匹配 30",  match_field("*/59", 30), False)
+
+print("▶ match_field: 单值范围")
+test("5-5 匹配 5",      match_field("5-5", 5),   True)
+test("5-5 不匹配 4",    match_field("5-5", 4),   False)
+test("5-5 不匹配 6",    match_field("5-5", 6),   False)
+
+print("▶ match_field: 多范围组合")
+test("1-3,7-9 匹配 1",  match_field("1-3,7-9", 1),  True)
+test("1-3,7-9 匹配 2",  match_field("1-3,7-9", 2),  True)
+test("1-3,7-9 匹配 8",  match_field("1-3,7-9", 8),  True)
+test("1-3,7-9 不匹配 5",match_field("1-3,7-9", 5),  False)
+
+# ══════════════════════════════════════════════════
+#  新增: match_cron 更多场景
+# ══════════════════════════════════════════════════
+
+print("▶ match_cron: 每半小时 0,30 * * * *")
+test("0,30 匹配 :00",
+    match_cron(["0,30","*","*","*","*"], make_time(0, 12)), True)
+test("0,30 匹配 :30",
+    match_cron(["0,30","*","*","*","*"], make_time(30, 12)), True)
+test("0,30 不匹配 :15",
+    match_cron(["0,30","*","*","*","*"], make_time(15, 12)), False)
+
+print("▶ match_cron: 周末 0,6")
+test("* * * * 0,6 匹配周六 (py=5)",
+    match_cron(["*","*","*","*","0,6"], make_time(wday_py=5)), True)
+test("* * * * 0,6 匹配周日 (py=6)",
+    match_cron(["*","*","*","*","0,6"], make_time(wday_py=6)), True)
+test("* * * * 0,6 不匹配周三 (py=2)",
+    match_cron(["*","*","*","*","0,6"], make_time(wday_py=2)), False)
+
+print("▶ match_cron: 年末 12月31日 23:59")
+test("59 23 31 12 * 匹配年末",
+    match_cron(["59","23","31","12","*"], make_time(59, 23, 31, 12)), True)
+test("59 23 31 12 * 不匹配 12月30日",
+    match_cron(["59","23","31","12","*"], make_time(59, 23, 30, 12)), False)
+
+print("▶ match_cron: 多小时 */8")
+test("0 */8 * * * 匹配 00:00",
+    match_cron(["0","*/8","*","*","*"], make_time(0, 0)), True)
+test("0 */8 * * * 匹配 08:00",
+    match_cron(["0","*/8","*","*","*"], make_time(0, 8)), True)
+test("0 */8 * * * 匹配 16:00",
+    match_cron(["0","*/8","*","*","*"], make_time(0, 16)), True)
+test("0 */8 * * * 不匹配 04:00",
+    match_cron(["0","*/8","*","*","*"], make_time(0, 4)), False)
+
+# ══════════════════════════════════════════════════
+#  新增: is_expired 强化
+# ══════════════════════════════════════════════════
+
+print("▶ is_expired: cron 同分钟边界")
+# 当前分钟的锁不应过期
+test("cron 当前分钟 (相等) 不过期",
+    is_expired("id-202602150800", NOW_EPOCH, "202602150800"), False)
+# 下一分钟的锁不应过期
+test("cron 下一分钟 不过期",
+    is_expired("id-202602150801", NOW_EPOCH, "202602150800"), False)
+
+print("▶ is_expired: 极短间隔 s1x0")
+old_s1 = (NOW_EPOCH - 600) // 1
+new_s1 = NOW_EPOCH // 1
+test("s1x0 10分钟前 过期", is_expired(f"s1x0-{old_s1}", NOW_EPOCH, NOW_MIN), True)
+test("s1x0 当前 未过期",   is_expired(f"s1x0-{new_s1}", NOW_EPOCH, NOW_MIN), False)
+
+print("▶ is_expired: 大间隔 s3600x0")
+old_s3600 = (NOW_EPOCH - 7200) // 3600
+new_s3600 = NOW_EPOCH // 3600
+test("s3600x0 2小时前 过期", is_expired(f"s3600x0-{old_s3600}", NOW_EPOCH, NOW_MIN), True)
+# 大间隔: 当前 slot 起始可能 >300s 前, 动态计算期望
+new_expected = new_s3600 * 3600 < NOW_EPOCH - 300
+test("s3600x0 当前 (动态验证)", is_expired(f"s3600x0-{new_s3600}", NOW_EPOCH, NOW_MIN), new_expected)
+
+print("▶ is_expired: 多索引 s30x5")
+old_s30_5 = (NOW_EPOCH - 600) // 30
+new_s30_5 = NOW_EPOCH // 30
+test("s30x5 过期", is_expired(f"s30x5-{old_s30_5}", NOW_EPOCH, NOW_MIN), True)
+test("s30x5 当前", is_expired(f"s30x5-{new_s30_5}", NOW_EPOCH, NOW_MIN), False)
+
+# ══════════════════════════════════════════════════
+#  新增: sanitize_key 强化
+# ══════════════════════════════════════════════════
+
+print("▶ sanitize_key: 边界")
+test("空字符串",       sanitize_key(""),           "")
+test("单字符 *",       sanitize_key("*"),           "x")
+test("单字符 0",       sanitize_key("0"),           "0")
+test("逗号表达式",     sanitize_key("1,15"),        "1x15")
+test("范围+逗号",      sanitize_key("0 9 1-5 1,7 *"), "0x9x1x5x1x7xx")
+
+# ══════════════════════════════════════════════════
+#  新增: parse_dispatch 强化
+# ══════════════════════════════════════════════════
+
+print("▶ parse_dispatch: 多余空格")
+cron, sec = parse_with("*/5  *  *  *  *   owner/repo   check.yml")
+# split() 按任意空白分割, 多余空格应被忽略
+test("多余空格也是7段", len(cron), 1)
+
+print("▶ parse_dispatch: 超多字段被跳过")
+cron, sec = parse_with("*/5 * * * * * * * owner/repo check.yml")
+test("10字段跳过 cron", len(cron), 0)
+
+print("▶ parse_dispatch: @0s 被解析为0")
+cron, sec = parse_with("@0s owner/repo a.yml")
+test("@0s 间隔为0", len(sec), 1)
+test("@0s 值",      sec[0][0], 0)
+
+print("▶ parse_dispatch: 大量任务")
+lines = [f"*/5 * * * * owner/repo{i} w{i}.yml" for i in range(50)]
+cron, sec = parse_with("\n".join(lines))
+test("50条 cron 全解析", len(cron), 50)
+
+# ══════════════════════════════════════════════════
+#  新增: 模拟强化
+# ══════════════════════════════════════════════════
+
+print("▶ 模拟: 30分钟 — 0,30 * * * *")
+cron = [("0,30 * * * *", ["0,30","*","*","*","*"], "o/r", "a.yml", "0x30xxxxxxxx")]
+fires = simulate(cron, [], 3600)
+# :00 和 :30 各触发1次 = 2次/小时
+test("0,30每小时触发2次", fires.get(0, 0), 2)
+
+print("▶ 模拟: 7天 — 周一 0 9 * * 1")
+# base_epoch 2026-02-15 00:00:00 是周日 (wday_py=6)
+# 周一是 +1天, 只触发1次
+cron = [("0 9 * * 1", ["0","9","*","*","1"], "o/r", "a.yml", "0x9xxxxx1")]
+fires = simulate(cron, [], 7 * 86400)
+test("周一cron 7天触发1次", fires.get(0, 0), 1)
+
+print("▶ 模拟: 48小时 — 0 8 * * * (应触发2天)")
+cron = [("0 8 * * *", ["0","8","*","*","*"], "o/r", "a.yml", "0x8xxxxxx")]
+fires = simulate(cron, [], 172800)
+test("每天8点 48小时触发2次", fires.get(0, 0), 2)
+
+print("▶ 模拟: 大间隔 sec — @3600s (每小时)")
+sec = [(3600, "o/r", "a.yml")]
+fires = simulate([], sec, 86400)
+# 86400/30 = 2880轮, slot = epoch//3600, 每120轮变一次 → 24次
+test("@3600s 24小时触发24次", fires.get(0, 0), 24)
+
+# ══════════════════════════════════════════════════
 #  结果汇总
 # ══════════════════════════════════════════════════
 
