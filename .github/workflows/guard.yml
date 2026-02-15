@@ -28,7 +28,6 @@ jobs:
           )
           echo "alive=${alive}" >> "$GITHUB_OUTPUT"
       - run: |
-          echo "$ALIVE" | grep -q tick-a || gh workflow run tick-a.yml -R "$REPO"
-          echo "$ALIVE" | grep -q tick-b || gh workflow run tick-b.yml -R "$REPO"
+          for wf in tick-a tick-b; do echo "$ALIVE" | grep -q $wf || gh workflow run ${wf}.yml -R "$REPO"; done
         env:
           ALIVE: ${{ steps.check.outputs.alive }}
