@@ -16,18 +16,12 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
     steps:
-      - id: check
-        run: |
-          alive=$(
+      - run: |
+          dead=$(
             gh run list -R "$REPO" --limit 10 \
               --json workflowName,status \
-              -q 'map(select(.status | test("progress|queued")))
-                  | map(.workflowName)
-                  | unique
-                  | join(",")'
+              -q '["tick-a","tick-b"]
+                  - [.[] | select(.status | test("progress|queued")) | .workflowName]
+                  | .[]'
           )
-          echo "alive=${alive}" >> "$GITHUB_OUTPUT"
-      - run: |
-          for wf in tick-a tick-b; do echo "$ALIVE" | grep -q $wf || gh workflow run ${wf}.yml -R "$REPO"; done
-        env:
-          ALIVE: ${{ steps.check.outputs.alive }}
+          for wf in $dead; do gh workflow run ${wf}.yml -R "$REPO"; done
