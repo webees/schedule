@@ -16,7 +16,7 @@
 
 | | |
 |---|---|
-| ⏱️ **秒級精度** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` 對齊 30 秒邊界 |
+| ⏱️ **秒級精度** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` 對齊 10 秒邊界 |
 | 🔒 **原子去重** | Git Ref 創建天然原子，雙鏈競態只有 1 次執行 |
 | 🛡️ **持續可用** | 自續期 + 互守護 + 錯開空窗，無人值守 |
 | 📦 **極簡程式碼** | 單檔案 tick.py，零外部依賴 |
@@ -33,7 +33,7 @@
 0   9 * * 1  owner/repo  weekly.yml    # 每週一 09:00
 
 # 秒級語法 — @Ns  倉庫  工作流
-@30s         owner/repo  poll.yml      # 每 30 秒
+@10s         owner/repo  poll.yml      # 每 10 秒
 ```
 
 字段語法：`*` 任意 · `*/5` 步進 · `0,30` 列舉 · `1-5` 範圍
@@ -73,9 +73,9 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳過
 
 | 機制 | 說明 |
 |------|------|
-| 錯開續期 | tick-a 600 輪 / tick-b 660 輪，永不同時空窗 |
+| 錯開續期 | tick-a 1800 輪 / tick-b 1980 輪，永不同時空窗 |
 | 自動續期 | 輪次結束自動 `workflow_dispatch` 下一輪 |
-| 互相守護 | 每輪 (30s) 檢查兄弟存活，死亡則直接重啟 |
+| 互相守護 | 每輪 (10s) 檢查兄弟存活，死亡則直接重啟 |
 | 新版退出 | `cancel-in-progress` + run_id 偵測，新程式碼推送秒切換 |
 
 | 小時 | 0 | 5 | 5.5 | 10 | 10.5 |

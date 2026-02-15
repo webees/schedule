@@ -16,7 +16,7 @@
 
 | | |
 |---|---|
-| ⏱️ **秒级精度** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` 对齐 30 秒边界 |
+| ⏱️ **秒级精度** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` 对齐 10 秒边界 |
 | 🔒 **原子去重** | Git Ref 创建天然原子，双链竞态只有 1 次执行 |
 | 🛡️ **持续可用** | 自续期 + 互守护 + 错开空窗，无人值守 |
 | 📦 **极简代码** | 单文件 tick.py，零外部依赖 |
@@ -33,7 +33,7 @@
 0   9 * * 1  owner/repo  weekly.yml    # 每周一 09:00
 
 # 秒级语法 — @Ns  仓库  工作流
-@30s         owner/repo  poll.yml      # 每 30 秒
+@10s         owner/repo  poll.yml      # 每 10 秒
 ```
 
 字段语法：`*` 任意 · `*/5` 步进 · `0,30` 枚举 · `1-5` 范围
@@ -73,9 +73,9 @@ tick-b: POST /git/refs → 422 Conflict ❌ 已存在 → 跳过
 
 | 机制 | 说明 |
 |------|------|
-| 错开续期 | tick-a 600 轮 / tick-b 660 轮，永不同时空窗 |
+| 错开续期 | tick-a 1800 轮 / tick-b 1980 轮，永不同时空窗 |
 | 自动续期 | 轮次结束自动 `workflow_dispatch` 下一轮 |
-| 互相守护 | 每轮 (30s) 检查兄弟存活，死亡则直接重启 |
+| 互相守护 | 每轮 (10s) 检查兄弟存活，死亡则直接重启 |
 | 新版退出 | `cancel-in-progress` + run_id 检测，新代码推送秒切换 |
 
 | 小时 | 0 | 5 | 5.5 | 10 | 10.5 |

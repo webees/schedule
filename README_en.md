@@ -16,7 +16,7 @@
 
 | | |
 |---|---|
-| ⏱️ **Precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 30-second boundaries |
+| ⏱️ **Precision** | `time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))` aligns to 10-second boundaries |
 | 🔒 **Dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
 | 🛡️ **Available** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
@@ -33,7 +33,7 @@
 0   9 * * 1  owner/repo  weekly.yml    # every Monday 09:00
 
 # second-level — @Ns  repo  workflow
-@30s         owner/repo  poll.yml      # every 30 seconds
+@10s         owner/repo  poll.yml      # every 10 seconds
 ```
 
 Field syntax: `*` any · `*/5` step · `0,30` list · `1-5` range
@@ -73,9 +73,9 @@ tick-b: POST /git/refs → 422 Conflict ❌ exists → skip
 
 | Mechanism | Description |
 |-----------|-------------|
-| Staggered    | tick-a 600 rounds / tick-b 660 rounds, never gap simultaneously |
+| Staggered    | tick-a 1800 rounds / tick-b 1980 rounds, never gap simultaneously |
 | Auto-renew   | `workflow_dispatch` next cycle on completion |
-| Mutual guard | Check sibling every round (30s), restart directly if dead |
+| Mutual guard | Check sibling every round (10s), restart directly if dead |
 | Version exit | `cancel-in-progress` + run_id detection, instant switch on push |
 
 | Hour | 0 | 5 | 5.5 | 10 | 10.5 |
