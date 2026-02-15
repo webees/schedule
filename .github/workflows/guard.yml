@@ -18,10 +18,8 @@ jobs:
     steps:
       - id: check
         run: |
-          alive=$(gh run list -R "$REPO" --limit 10 \
-            --json workflowName,status \
-            -q '[.[] | select(.status == "in_progress" or .status == "queued")]
-                | [.[].workflowName] | unique | join(",")')
+          JQ='[.[] | select(.status == "in_progress" or .status == "queued")] | [.[].workflowName] | unique | join(",")'
+          alive=$(gh run list -R "$REPO" --limit 10 --json workflowName,status -q "$JQ")
           echo "alive=$alive" >> "$GITHUB_OUTPUT"
       - if: ${{ !contains(steps.check.outputs.alive, 'tick-a') }}
         run: gh workflow run tick-a.yml -R "$REPO"
