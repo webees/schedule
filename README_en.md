@@ -20,7 +20,7 @@
 | 🔒 **Dedup** | Git Ref creation is inherently atomic — dual-chain race yields exactly 1 execution |
 | 🛡️ **Available** | Auto-renewal + mutual guard + staggered gaps, fully unattended |
 | 📦 **Minimal code** | Single file tick.py, zero external dependencies |
-| 🧪 **Full test suite** | 257 unit tests + 24-hour fast-forward simulation |
+| 🧪 **Full test suite** | 305 unit tests + 24-hour fast-forward simulation |
 
 ## 📋 Usage
 
