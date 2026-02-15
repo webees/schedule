@@ -17,11 +17,8 @@ jobs:
       REPO: ${{ github.repository }}
     steps:
       - run: |
-          dead=$(
-            gh run list -R "$REPO" --limit 10 \
-              --json workflowName,status \
-              -q '["tick-a","tick-b"]
-                  - [.[] | select(.status | test("progress|queued")) | .workflowName]
-                  | .[]'
-          )
-          for wf in $dead; do gh workflow run ${wf}.yml -R "$REPO"; done
+          for wf in tick-a tick-b; do
+            gh run list -w ${wf}.yml -R "$REPO" --limit 1 --json status -q '.[0].status' 2>/dev/null \
+              | grep -qE 'progress|queued' \
+              || gh workflow run ${wf}.yml -R "$REPO"
+          done
