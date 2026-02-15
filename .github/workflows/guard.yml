@@ -12,11 +12,9 @@ permissions:
 jobs:
   guard:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
     steps:
-      - run: |
-          for wf in tick-a tick-b; do
-            gh run list -w ${wf}.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run ${wf}.yml -R "$REPO"
-          done
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
+      - run: gh run list -w tick-a.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run tick-a.yml -R "$REPO"
+      - run: gh run list -w tick-b.yml --json status -q '.[0].status' --limit 1 -R "$REPO" 2>/dev/null | grep -qE 'in_progress|queued' || gh workflow run tick-b.yml -R "$REPO"
