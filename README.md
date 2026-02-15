@@ -43,10 +43,10 @@
 ## 🚀 启动
 
 ```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
+gh workflow run guard.yml
 ```
 
-或 `git push main` 自动启动双链。
+guard 自动检测并拉起未运行的 tick。也可 `git push main` 启动。
 
 ## 🔒 原子锁
 

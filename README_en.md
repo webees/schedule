@@ -43,10 +43,10 @@ Field syntax: `*` any · `*/5` step · `0,30` list · `1-5` range. Minimum secon
 ## 🚀 Startup
 
 ```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
+gh workflow run guard.yml
 ```
 
-Or `git push main` to auto-start both chains.
+Guard auto-detects and starts any inactive tick. Or `git push main` to start.
 
 ## 🔒 Atomic Lock
 
