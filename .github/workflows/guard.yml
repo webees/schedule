@@ -17,7 +17,12 @@ jobs:
       REPO: ${{ github.repository }}
     steps:
       - id: check
-        run: echo "alive=$(gh run list -R "$REPO" --limit 10 --json workflowName,status -q '[.[] | select(.status == "in_progress" or .status == "queued")] | [.[].workflowName] | unique | join(",")')" >> "$GITHUB_OUTPUT"
+        run: |
+          alive=$(gh run list -R "$REPO" --limit 10 \
+            --json workflowName,status \
+            -q '[.[] | select(.status == "in_progress" or .status == "queued")]
+                | [.[].workflowName] | unique | join(",")')
+          echo "alive=$alive" >> "$GITHUB_OUTPUT"
       - if: ${{ !contains(steps.check.outputs.alive, 'tick-a') }}
         run: gh workflow run tick-a.yml -R "$REPO"
       - if: ${{ !contains(steps.check.outputs.alive, 'tick-b') }}
