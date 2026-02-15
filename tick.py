@@ -244,12 +244,11 @@ def clean_locks():
 
 def clean_runs():
     """删除已完成的 workflow run, 保留当前运行中的"""
-    ids = gh("run", "list", "-R", REPO, "--status", "completed",
-             "--limit", "100", "--json", "databaseId",
-             "-q", f".[] | select(.databaseId != {RUN}) | .databaseId")[0].split()
-    for rid in ids:
-        sp.Popen(["gh", "run", "delete", rid, "-R", REPO],
-                 stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+    sp.Popen(
+        f'gh run list -R "{REPO}" --status completed --limit 100 --json databaseId '
+        f'-q ".[] | select(.databaseId != {RUN}) | .databaseId" 2>/dev/null '
+        f'| xargs -I{{}} gh run delete {{}} -R "{REPO}" 2>/dev/null',
+        shell=True, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
 def check_update():
     """检测是否有更新的 run_id, 有则退出让位"""
