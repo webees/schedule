@@ -6,8 +6,9 @@
 
 ## Table of Contents
 
-- [Highlights](#-highlights) · [Architecture](#%EF%B8%8F-architecture) · [Atomic Lock](#-atomic-lock) · [Self-Healing](#%EF%B8%8F-self-healing) · [Fault Tolerance](#-fault-tolerance)
-- [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Extension](#-extension) · [Testing](#-testing) · [Startup](#-startup)
+- [Highlights](#-highlights) · [Architecture](#%EF%B8%8F-architecture) · [Usage](#-usage) · [Startup](#-startup)
+- [Atomic Lock](#-atomic-lock) · [Self-Healing](#%EF%B8%8F-self-healing) · [Fault Tolerance](#-fault-tolerance)
+- [Files](#-files) · [Core Functions](#%EF%B8%8F-core-functions) · [Testing](#-testing)
 
 ---
 
@@ -28,6 +29,49 @@ tick-a ──┐
          ├── atomic lock race ──→ winner triggers external workflow
 tick-b ──┘
 ```
+
+## 📋 Usage
+
+Single config: Secret `DISPATCH`, one entry per line, supports comments (`#`) and blank lines.
+
+**Crontab 5-field** (minimum 1 minute):
+
+```
+min hour day month weekday  repo  workflow
+```
+
+**Second-level syntax** (any interval):
+
+```
+@Ns  repo  workflow
+```
+
+Field syntax same as crontab: `*` any / `*/5` every 5 / `0,30` specific / `1-5` range
+
+Example:
+
+```
+# Health check every 5 minutes
+*/5 * * * *  owner/repo  check.yml
+
+# Daily report at 08:00 (UTC)
+0   8 * * *  owner/repo  daily.yml
+
+# Poll every 30 seconds
+@30s         owner/repo  poll.yml
+```
+
+> **Adding tasks only requires changing the Secret, no code changes. Cron expressions always use UTC.**
+
+**Log timezone**: `TZ_OFFSET` env var controls time display in logs. Default `0` (UTC), set to `8` for Beijing time.
+
+## 🚀 Startup
+
+```bash
+gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
+```
+
+Or `git push main` to auto-start both chains.
 
 ## 🔒 Atomic Lock
 
@@ -99,39 +143,6 @@ AGENTS.md               AI coding guidelines
 | `guard_peer()` | Check peer liveness, restart if dead |
 | `self_renew()` | Auto-renew after round completion |
 
-## 🔌 Extension
-
-Single config: Secret `DISPATCH`, one entry per line, supports comments (`#`) and blank lines:
-
-**Crontab 5-field** (minimum 1 minute):
-
-```
-min hour day month weekday  repo  workflow
-```
-
-**Second-level syntax** (any interval):
-
-```
-@Ns  repo  workflow
-```
-
-Field syntax same as crontab: `*` any / `*/5` every 5 / `0,30` specific / `1-5` range
-
-Example:
-
-```
-# Health check every 5 minutes
-*/5 * * * *  owner/repo  check.yml
-
-# Daily report at 08:00
-0   8 * * *  owner/repo  daily.yml
-
-# Poll every 30 seconds
-@30s         owner/repo  poll.yml
-```
-
-> **Adding tasks only requires changing the Secret, no code changes.**
-
 ## 🧪 Testing
 
 ```bash
@@ -139,14 +150,6 @@ python3 test_tick.py
 ```
 
 Covers: pure function verification, lock expiry checks, end-to-end DISPATCH parsing, 24-hour fast-forward scheduling simulation.
-
-## 🚀 Startup
-
-```bash
-gh workflow run tick-a.yml && sleep 60 && gh workflow run tick-b.yml
-```
-
-Or `git push main` to auto-start both chains.
 
 ## 📄 License
 

@@ -22,9 +22,10 @@ REPO = os.environ["REPO"]                          # 当前仓库: owner/repo
 RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版本检测
 PEER = "tick-b" if SELF == "tick-a" else "tick-a"  # 兄弟 workflow
 API  = f"/repos/{REPO}"                            # GitHub API 前缀
-INTERVAL = 30                                      # 每轮间隔 (秒)
-ROUNDS = 600 + (ord(SELF[-1]) - ord("a")) * 60    # 总轮次: a=600(5h) b=660(5.5h)
-DEBUG  = os.environ.get("DEBUG", "") == "1"        # 调试模式: 显示详细错误信息
+INTERVAL   = 30                                    # 每轮间隔 (秒)
+ROUNDS     = 600 + (ord(SELF[-1]) - ord("a")) * 60  # 总轮次: a=600(5h) b=660(5.5h)
+DEBUG      = os.environ.get("DEBUG", "") == "1"      # 调试模式: 显示详细错误信息
+TZ_OFFSET  = int(os.environ.get("TZ_OFFSET", "0"))   # 日志时区偏移 (小时): 8 = UTC+8
 
 # ══════════════════════════════════════════════════
 #  基础工具
@@ -299,10 +300,10 @@ if __name__ == "__main__":
 
         # ② 对齐 30 秒边界
         time.sleep(max(0.1, INTERVAL - time.time() % INTERVAL))
-        epoch    = int(time.time())
-        now      = time.gmtime(epoch)
-        time_str = time.strftime('%H:%M:%S', now)
-        minute_key = time.strftime('%Y%m%d%H%M', now)
+        epoch      = int(time.time())
+        now        = time.gmtime(epoch)
+        time_str   = time.strftime('%H:%M:%S', time.gmtime(epoch + TZ_OFFSET * 3600))
+        minute_key = time.strftime('%Y%m%d%H%M', now)  # cron 匹配始终用 UTC
         refresh_sha()  # 每轮刷新一次 SHA, 供所有 lock() 复用
 
         # ③ 调度 (统一使用 schedule_round, 与测试共享同一份逻辑)
