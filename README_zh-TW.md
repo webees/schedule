@@ -24,38 +24,21 @@
 
 ## 📋 使用
 
-唯一配置：Secret `DISPATCH`，每行一條，支援註釋 (`#`) 和空行。
-
-**crontab 5 字段** (最小粒度 1 分鐘)：
+> 唯一配置：Secret `DISPATCH`，每行一條，支援註釋和空行。cron 使用 UTC 時區。
 
 ```
-分 時 日 月 週  倉庫  工作流
+# crontab 5 字段 — 分 時 日 月 週  倉庫  工作流
+*/5 * * * *  owner/repo  check.yml     # 每 5 分鐘
+0   8 * * *  owner/repo  daily.yml     # 每天 08:00
+0   9 * * 1  owner/repo  weekly.yml    # 每週一 09:00
+
+# 秒級語法 — @Ns  倉庫  工作流
+@30s         owner/repo  poll.yml      # 每 30 秒
 ```
 
-**秒級語法** (任意間隔)：
+字段語法：`*` 任意 · `*/5` 步進 · `0,30` 列舉 · `1-5` 範圍
 
-```
-@Ns  倉庫  工作流
-```
-
-字段語法同 crontab：`*` 任意 / `*/5` 每 5 / `0,30` 指定 / `1-5` 範圍
-
-示例：
-
-```
-# 每 5 分鐘檢查
-*/5 * * * *  owner/repo  check.yml
-
-# 每天 08:00 (UTC) 日報
-0   8 * * *  owner/repo  daily.yml
-
-# 每 30 秒輪詢
-@30s         owner/repo  poll.yml
-```
-
-> **添加任務只改 Secret，不改任何程式碼。cron 表達式始終使用 UTC 時區。**
-
-**日誌時區**：`TZ_OFFSET` 環境變數控制日誌中的時間顯示，預設 `0` (UTC)，設為 `8` 則顯示北京時間。
+`TZ_OFFSET` 環境變數控制日誌時間顯示，預設 `0` (UTC)，設為 `8` 顯示北京時間。
 
 ## 🚀 啟動
 

@@ -24,38 +24,21 @@
 
 ## 📋 Usage
 
-Single config: Secret `DISPATCH`, one entry per line, supports comments (`#`) and blank lines.
-
-**Crontab 5-field** (minimum 1 minute):
+> Single config: Secret `DISPATCH`, one entry per line, supports comments and blank lines. Cron uses UTC.
 
 ```
-min hour day month weekday  repo  workflow
+# crontab 5-field — min hour day month weekday  repo  workflow
+*/5 * * * *  owner/repo  check.yml     # every 5 minutes
+0   8 * * *  owner/repo  daily.yml     # daily at 08:00
+0   9 * * 1  owner/repo  weekly.yml    # every Monday 09:00
+
+# second-level — @Ns  repo  workflow
+@30s         owner/repo  poll.yml      # every 30 seconds
 ```
 
-**Second-level syntax** (any interval):
+Field syntax: `*` any · `*/5` step · `0,30` list · `1-5` range
 
-```
-@Ns  repo  workflow
-```
-
-Field syntax same as crontab: `*` any / `*/5` every 5 / `0,30` specific / `1-5` range
-
-Example:
-
-```
-# Health check every 5 minutes
-*/5 * * * *  owner/repo  check.yml
-
-# Daily report at 08:00 (UTC)
-0   8 * * *  owner/repo  daily.yml
-
-# Poll every 30 seconds
-@30s         owner/repo  poll.yml
-```
-
-> **Adding tasks only requires changing the Secret, no code changes. Cron expressions always use UTC.**
-
-**Log timezone**: `TZ_OFFSET` env var controls time display in logs. Default `0` (UTC), set to `8` for Beijing time.
+`TZ_OFFSET` env var controls log time display. Default `0` (UTC), set to `8` for Beijing time.
 
 ## 🚀 Startup
 
