@@ -14,11 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      REPO: ${{ github.repository }}
     steps:
       - run: |
           for wf in tick-a tick-b; do
-            gh run list -w ${wf}.yml -R "$REPO" --limit 1 --json status -q '.[0].status' 2>/dev/null \
+            gh run list -w ${wf}.yml -R "$GITHUB_REPOSITORY" --limit 1 --json status -q '.[0].status' 2>/dev/null \
               | grep -qE 'progress|queued' \
-              || gh workflow run ${wf}.yml -R "$REPO"
+              || gh workflow run ${wf}.yml -R "$GITHUB_REPOSITORY"
           done
