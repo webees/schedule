@@ -24,8 +24,8 @@ jobs:
               || gh workflow run ${wf}.yml -R "$GITHUB_REPOSITORY"
           done
       - run: |
-          [ $(($(date +%s) - $(git log -1 --format=%ct))) -gt 4320000 ] \
-            && date > LICENSE \
+          [ $(($(date +%s) - $(git log -1 --format=%ct))) -gt 2592000 ] \
+            && sed -i "s/Copyright (c) .* webees/Copyright (c) $(date +%F) webees/" LICENSE \
             && git -c user.name=bot -c user.email=bot commit -am keep-alive --amend \
             && git push -f \
             || true
