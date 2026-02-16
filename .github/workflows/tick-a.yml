@@ -24,9 +24,6 @@ jobs:
           PYTHONUNBUFFERED: "1"
           GH_TOKEN: ${{ github.token }}
           PAT: ${{ secrets.PAT }}
-          SELF: ${{ github.workflow }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
           DISPATCH: ${{ secrets.DISPATCH }}
           DEBUG: ${{ secrets.DEBUG }}
           TZ_OFFSET: "8"

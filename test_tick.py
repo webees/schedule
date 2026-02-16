@@ -10,9 +10,9 @@ import os, time
 #  导入前设置环境变量 (tick.py 模块级需要)
 # ══════════════════════════════════════════════════
 
-os.environ.setdefault("SELF", "tick-a")
-os.environ.setdefault("REPO", "test/repo")
-os.environ.setdefault("RUN_ID", "1")
+os.environ.setdefault("GITHUB_WORKFLOW", "tick-a")
+os.environ.setdefault("GITHUB_REPOSITORY", "test/repo")
+os.environ.setdefault("GITHUB_RUN_ID", "1")
 os.environ.setdefault("DISPATCH", "")
 
 from tick import match_field, match_cron, parse_dispatch, is_expired, sanitize_key, FIELD_MIN

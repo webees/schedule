@@ -17,12 +17,12 @@ import os, subprocess as sp, sys, time
 #  环境变量
 # ══════════════════════════════════════════════════
 
-SELF = os.environ["SELF"]                          # 自身 workflow: tick-a | tick-b
-REPO = os.environ["REPO"]                          # 当前仓库: owner/repo
-RUN  = int(os.environ["RUN_ID"])                   # 当前 run id, 用于新版本检测
-API  = f"/repos/{REPO}"                            # GitHub API 前缀
-INTERVAL   = 10                                     # 每轮间隔 (秒)
-DURATION   = 18000 + (ord(SELF[-1]) - ord("a")) * 1800  # 运行时长(秒): a=5h b=5.5h
+GITHUB_WORKFLOW   = os.environ["GITHUB_WORKFLOW"]      # 自身 workflow: tick-a | tick-b
+GITHUB_REPOSITORY = os.environ["GITHUB_REPOSITORY"]    # 当前仓库: owner/repo
+GITHUB_RUN_ID     = int(os.environ["GITHUB_RUN_ID"])   # 当前 run id, 用于新版本检测
+API  = f"/repos/{GITHUB_REPOSITORY}"                   # GitHub API 前缀
+INTERVAL   = 10                                        # 每轮间隔 (秒)
+DURATION   = 18000 + (ord(GITHUB_WORKFLOW[-1]) - ord("a")) * 1800  # 运行时长(秒): a=5h b=5.5h
 DEBUG      = os.environ.get("DEBUG", "") == "1"      # 调试模式: 显示详细错误信息
 TZ_OFFSET  = int(os.environ.get("TZ_OFFSET", "0"))   # 日志时区偏移 (小时): 8 = UTC+8
 
@@ -235,23 +235,23 @@ def clean_locks():
 def clean_runs():
     """删除已完成的 workflow run, 保留当前运行中的"""
     sp.Popen(
-        f'gh run list -R "{REPO}" --status completed --limit 100 --json databaseId '
-        f'-q ".[] | select(.databaseId != {RUN}) | .databaseId" 2>/dev/null '
-        f'| xargs -I{{}} gh run delete {{}} -R "{REPO}" 2>/dev/null',
+        f'gh run list -R "{GITHUB_REPOSITORY}" --status completed --limit 100 --json databaseId '
+        f'-q ".[] | select(.databaseId != {GITHUB_RUN_ID}) | .databaseId" 2>/dev/null '
+        f'| xargs -I{{}} gh run delete {{}} -R "{GITHUB_REPOSITORY}" 2>/dev/null',
         shell=True, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
 def check_update():
     """检测是否有更新的 run_id, 有则退出让位"""
-    if gh("run", "list", "-w", f"{SELF}.yml", "-s", "in_progress",
-           "--json", "databaseId", "-q", f"any(.[]; .databaseId > {RUN})",
-           "-R", REPO)[0].strip() == "true":
+    if gh("run", "list", "-w", f"{GITHUB_WORKFLOW}.yml", "-s", "in_progress",
+           "--json", "databaseId", "-q", f"any(.[]; .databaseId > {GITHUB_RUN_ID})",
+           "-R", GITHUB_REPOSITORY)[0].strip() == "true":
         sys.exit(print("🛑 更新版本存在, 退出"))
 
 
 def print_banner():
     """启动时打印运行信息和任务列表"""
     print(BAR)
-    print(f"  {SELF} | id={RUN}")
+    print(f"  {GITHUB_WORKFLOW} | id={GITHUB_RUN_ID}")
     print(BAR)
     for idx, (key, _, _, _, _) in enumerate(CRON_ENTRIES):
         print(f"  #{idx}  {key}")
